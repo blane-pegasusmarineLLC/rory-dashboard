@@ -179,7 +179,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
         </div>
         <div id="chk" class="chk"><h3>Check before handover</h3><div id="chkList"></div></div>
         <div class="card"><h3>Maintenance due</h3><div id="maint"></div>
-          <div class="note">Entries marked sample are placeholders. Edit the MAINT list in the script. Hours-based items will use engine hours once the engines report.</div></div>
+          <div class="note">Entries marked sample are placeholders and do not count toward the score. Edit the MAINT list in the script. Hours-based items will use engine hours once the engines report.</div></div>
         <div class="card"><h3>Recent events</h3><div id="events"><span class="na">None yet</span></div></div>
       </div>
     </div>
@@ -293,7 +293,7 @@ function derive(d) {
 
   // maintenance by date
   MAINT.forEach(m => {
-    if (!m.due) return; const dd = daysUntil(m.due);
+    if (!m.due || m.sample) return; const dd = daysUntil(m.due);
     if (dd < 0) { held.push({ label: `${m.label} overdue`, pts: RULES.maintOverduePoints }); checks.push(`${m.label} is overdue (${m.detail}).`); }
     else if (dd <= RULES.maintSoonDays) { held.push({ label: `${m.label} due in ${dd} days`, pts: RULES.maintSoonPoints }); }
   });
@@ -370,7 +370,7 @@ function renderAll(d) {
   const T = [];
   // Safety critical
   const hs = Object.keys(s.latestState).length;
-  const safeSt = s.openHatches.length || MAINT.some(m => m.due && daysUntil(m.due) <= RULES.maintSoonDays) ? "watch" : "ok";
+  const safeSt = s.openHatches.length || MAINT.some(m => m.due && !m.sample && daysUntil(m.due) <= RULES.maintSoonDays) ? "watch" : "ok";
   const fe = MAINT[0], fl = MAINT[1];
   T.push(tile("Safety critical", safeSt, safeSt === "ok" ? "OK" : "Watch", "man",
     row("Bilge pump", NA("Sensor not fitted yet")) + row("Fire extinguishers", esc(fe.detail)) + row("Flares", esc(fl.detail)) + row("Hatches open", s.openHatches.length ? esc(s.openHatches.join(", ")) : hs ? "None" : NA("No sensor events yet")),
@@ -414,9 +414,9 @@ function renderAll(d) {
   // Position and geofence
   const moved = d.track && d.track.some(r => Math.abs(r.lat - d.track[0].lat) > 0.0004 || Math.abs(r.lon - d.track[0].lon) > 0.0004);
   const inside = pos ? metres(pos.lat, pos.lon, BASE.lat, BASE.lon) <= BASE.radius : null;
-  T.push(tile("Position and geofence", pos ? (inside ? "ok" : "watch") : "none", pos ? (inside ? "OK" : "Away") : "No data yet", "live",
-    row("Position", pos ? `${dm(pos.lat, "N", "S")}, ${dm(pos.lon, "E", "W")}` : NA("No position")) + row("Course (true)", pos && pos.cog != null && moved ? fmt(pos.cog * RAD2DEG, 0) + "°" : NA("n/a at rest")) +
-    row("Geofence", pos ? (inside ? "Inside " + BASE.name : "Outside " + BASE.name) : "—") + row("Track, last 3 h", d.track && d.track.length ? (moved ? "Moved" : "At dock, no movement") : NA("No track"))));
+  T.push(tile("Position", pos ? (inside ? "ok" : "watch") : "none", pos ? (inside ? "OK" : "Away") : "No data yet", "live",
+    row("Latitude", pos ? dm(pos.lat, "N", "S") : NA("No position")) + row("Longitude", pos ? dm(pos.lon, "E", "W") : "—") + row("Course (true)", pos && pos.cog != null && moved ? fmt(pos.cog * RAD2DEG, 0) + "°" : NA("n/a at rest")) +
+    row("Geofence", pos ? (inside ? "Inside " + BASE.name : "Outside " + BASE.name) : "—") + row("Track, 3 h", d.track && d.track.length ? (moved ? "Moved" : "At dock, no movement") : NA("No track"))));
   // Gateway
   const pl = s.pl, gw = [
     ["Last report", d.status ? ago(d.status.ts) : "—"],
