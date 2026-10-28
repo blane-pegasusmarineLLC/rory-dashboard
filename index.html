@@ -179,7 +179,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
         </div>
         <div id="chk" class="chk"><h3>Check before handover</h3><div id="chkList"></div></div>
         <div class="card"><h3>Maintenance due</h3><div id="maint"></div>
-          <div class="note">Entries marked sample are placeholders and do not count toward the score. Edit the MAINT list in the script. Hours-based items will use engine hours once the engines report.</div></div>
+          <div class="note">Entries marked sample are placeholders and do not count toward the score. Edit the MAINT list in the script. Engine hours are now available (see Propulsion); hours-based items will use them once service intervals are entered.</div></div>
         <div class="card"><h3>Recent events</h3><div id="events"><span class="na">None yet</span></div></div>
       </div>
     </div>
@@ -218,6 +218,9 @@ const MAINT = [
   { label: "Haul-out and antifouling", detail: "March 2027", due: "2027-03-01", sample: true },
 ];
 // Future sensor paths (shown as planned until they appear in the data)
+// Engines as named by Signal K (N2K instance 0 = port, 1 = starboard by convention). Set ENGINE_LABELS_CONFIRMED = true after the crew has run each engine alone.
+const ENGINES = [{ id: "port", label: "Port engine" }, { id: "starboard", label: "Starboard engine" }];
+const ENGINE_LABELS_CONFIRMED = false;
 const WM_CURRENT_PATH = "electrical.watermaker.current";   // amps, from a current monitor on its 120 V plug
 const WM_FILTER_HOURS_PATH = "electrical.watermaker.filterHours";
 
@@ -376,10 +379,24 @@ function renderAll(d) {
     row("Bilge pump", NA("Sensor not fitted yet")) + row("Fire extinguishers", esc(fe.detail)) + row("Flares", esc(fl.detail)) + row("Hatches open", s.openHatches.length ? esc(s.openHatches.join(", ")) : hs ? "None" : NA("No sensor events yet")),
     "Bilge and smoke alarms need sensors. The rest is checked at handover."));
   // Propulsion
-  const eng = Object.keys(paths).filter(k => /^propulsion\./.test(k));
-  T.push(tile("Propulsion", s.engineSeen ? "ok" : "none", s.engineSeen ? "OK" : "No data yet", "plan",
-    row("Port engine", s.engineSeen ? "Reporting" : NA("Not seen yet")) + row("Starboard engine", s.engineSeen ? "Reporting" : NA("Not seen yet")) + row("Generator", NA("Not on the boat network")) + row("Engine hours", NA("Appear after first run")),
-    "Values appear after the first engine run. The generator needs its own interface."));
+    const ev = (id, k) => pv(paths, `propulsion.${id}.${k}`);
+  const engState = en => {
+    const rpm = ev(en.id, "revolutions"), rt = ev(en.id, "runTime");
+    if (!rpm && !rt) return NA("Not seen yet");
+    const fresh = rpm && rpm.q !== "stale" && rpm.n > 0;
+    const hrs = rt && rt.last != null ? " · " + fmt(rt.last / 3600, 1) + " h" : "";
+    return fresh && rpm.last > 0 ? `<b>Running</b> ${Math.round(rpm.last * 60)} rpm${hrs}` : "Stopped" + hrs;
+  };
+  const anyEng = ENGINES.some(en => ev(en.id, "revolutions") || ev(en.id, "runTime"));
+  const anyRun = ENGINES.some(en => { const r = ev(en.id, "revolutions"); return r && r.q !== "stale" && r.n > 0 && r.last > 0; });
+  const tmp = ENGINES.map(en => { const t = ev(en.id, "temperature"); return t && t.last != null ? fmt(t.last - 273.15, 0) : "—"; });
+  const alt = ENGINES.map(en => { const a = ev(en.id, "alternatorVoltage"); return a && a.last != null ? fmt(a.last, 1) : "—"; });
+  T.push(tile("Propulsion", anyEng ? "ok" : "none", anyRun ? "Running" : anyEng ? "OK" : "No data yet", "live",
+    ENGINES.map(en => row(en.label, engState(en))).join("") +
+    row("Coolant (unverified)", anyEng ? tmp.join(" / ") + " °C" : NA("No data")) +
+    row(anyRun ? "Alternators" : "Alternators, last run", anyEng ? alt.join(" / ") + " V" + "" : NA("No data")) +
+    row("Generator", NA("Not on the boat network")),
+    (ENGINE_LABELS_CONFIRMED ? "" : "Port and starboard follow Signal K's convention and are not yet confirmed. ") + "Oil pressure and fuel rate are not shown until verified."));
   // Fuel
   const lvl = (p, label, extra) => { if (!p) return ""; const pct = p.last != null ? Math.round(p.last * 100) : null; return `<div class="tank"><div class="l"><span>${label}${extra || ""}${p.q === "stale" ? qtag(p) : ""}</span><b>${pct != null ? pct + " %" : "—"}</b></div><div class="bar"><i style="width:${pct || 0}%"></i></div></div>`; };
   const fuelSt = !s.fuel ? "none" : s.fuel.last < RULES.fuelTarget ? "watch" : "ok";
@@ -399,8 +416,8 @@ function renderAll(d) {
     return `<div class="bank"><div class="n">Bank ${i}</div><div class="vv">${fmt(v && v.last, 2)}<small>V</small>${qtag(v)}</div>${spark(series)}</div>`; }).join("");
   const elSt = s.vmin == null ? "none" : s.vmin < RULES.batteryNotReadyV ? "alert" : s.vmin < RULES.batteryReadyV ? "watch" : "ok";
   T.push(tile("Electrical and power", elSt, elSt === "none" ? "No data yet" : elSt === "ok" ? "OK" : elSt === "alert" ? "Alert" : "Watch", "live",
-    (banks ? `<div class="banks">${banks}</div>` : row("Battery banks", NA("No data yet"))) + row("Current and charge level", NA("Not available yet")) + row("Shore power", NA("Not available yet")),
-    "Voltage only. The battery monitor does not send current or charge on the boat network yet. Bank names follow once instances are mapped to house and start batteries.", "w2"));
+    (banks ? `<div class="banks">${banks}</div>` : row("Battery banks", NA("No data yet"))) + row("Bank 0 current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) + row("Banks 2, 5, 6 current and charge level", NA("Not available yet")) + row("Shore power", NA("Not available yet")),
+    "Bank 0 reports current (small values are normal on a full bank). Banks 2, 5 and 6 send voltage only. Bank names follow once instances are mapped to house and start batteries.", "w2"));
   // Security
   T.push(tile("Security", s.openHatches.length ? "watch" : hs ? "ok" : "none", s.openHatches.length ? "Watch" : hs ? "OK" : "No data yet", "live",
     row("Hatch and door sensors", hs ? `${hs} reporting, ${s.openHatches.length} open` : NA("No sensor events yet")) +
@@ -471,10 +488,14 @@ function demoData() {
   const paths = {
     "electrical.batteries.0.voltage": s(13.7), "electrical.batteries.2.voltage": s(13.77),
     "electrical.batteries.5.voltage": s(13.8), "electrical.batteries.6.voltage": s(13.7),
-    "electrical.batteries.0.current": { n: 60, last: 0, q: "unverified" },
     "electrical.batteries.0.capacity.stateOfCharge": { n: 60, last: 1, q: "unverified" },
     "tanks.freshWater.0.currentLevel": s(0.66), "tanks.fuel.0.currentLevel": s(0.89),
     "tanks.freshWater.1.currentLevel": { ...s(1), q: "unverified" }, "tanks.fuel.1.currentLevel": { ...s(1), q: "unverified" },
+    "propulsion.port.revolutions": { n: 0, last: 0, q: "stale" }, "propulsion.starboard.revolutions": { n: 0, last: 0, q: "stale" },
+    "propulsion.port.runTime": { n: 0, last: 3268260, q: "stale" }, "propulsion.starboard.runTime": { n: 0, last: 3225240, q: "stale" },
+    "propulsion.port.temperature": { n: 0, last: 349.15, q: "stale" }, "propulsion.starboard.temperature": { n: 0, last: 349.15, q: "stale" },
+    "propulsion.port.alternatorVoltage": { n: 0, last: 14.1, q: "stale" }, "propulsion.starboard.alternatorVoltage": { n: 0, last: 14.1, q: "stale" },
+    "electrical.batteries.0.current": { n: 60, last: -0.4, q: "unverified" },
     "environment.depth.belowKeel": s(1.33), "environment.water.temperature": s(304.53), "environment.wind.speedApparent": s(5.0),
   };
   const hist = Array.from({ length: 120 }, (_, i) => ({ ts: iso(now - i * 60000), paths: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, v.mean != null ? { ...v, mean: v.mean + Math.sin(i / 9) * 0.06 } : v])) }));

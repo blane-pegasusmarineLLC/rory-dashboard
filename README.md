@@ -19,3 +19,8 @@ Single static page: `index.html`. No build step.
 - The score uses live data only. Unverified sensors (second tanks, frozen battery current and charge) never lower it.
 - Water maker rows show "Not monitored yet" until paths `electrical.watermaker.current` and `electrical.watermaker.filterHours` appear in the data.
 - Same files to deploy: `index.html` replaces the old one. The publishable key and Supabase URL are unchanged.
+
+## v2.2 changes
+- Propulsion tile shows each engine's state (Stopped / Running with rpm), engine hours from `propulsion.<id>.runTime` (seconds), coolant temperature (marked unverified) and alternator voltage. Oil pressure, fuel rate, load and boost are not shown until verified.
+- `ENGINES` and `ENGINE_LABELS_CONFIRMED` near the top of the script control the engine names (Signal K calls them port and starboard by N2K convention). Set the flag to true after the crew confirms which engine is which.
+- Electrical tile shows bank 0 current. Banks 2, 5 and 6 send voltage only.
