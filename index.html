@@ -198,7 +198,9 @@ function renderPos(pos) {
 
 function spark(vals) {
   if (vals.length < 2) return "";
-  const w = 200, h = 34, mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 0.2;
+  // Minimum 0.6 V scale so normal wobble stays small and a real drop stands out.
+  const w = 200, h = 34, dmin = Math.min(...vals), dmax = Math.max(...vals);
+  const span = Math.max(dmax - dmin, 0.6), mn = (dmin + dmax) / 2 - span / 2;
   const pts = vals.map((v, i) => [(i / (vals.length - 1)) * w, h - 3 - ((v - mn) / span) * (h - 6)]);
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.6" points="${pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}"/></svg>`;
 }
