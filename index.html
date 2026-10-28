@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RORY Pegasus</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{
+  --bg:#f4f6f8; --card:#ffffff; --ink:#0f1b2a; --mute:#5b6b7c; --line:#dde3ea;
+  --accent:#0a6ea8; --ok:#17803d; --warn:#b45309; --bad:#b42318; --chip:#eef2f6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b141d; --card:#121f2b; --ink:#e8eef4; --mute:#93a4b5; --line:#22313f;
+    --accent:#4fb3ea; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --chip:#192a38;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b141d; --card:#121f2b; --ink:#e8eef4; --mute:#93a4b5; --line:#22313f;
+  --accent:#4fb3ea; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --chip:#192a38;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
+header .sub{color:var(--mute);font-size:13px}
+header .sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--chip)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.ok .dot{background:var(--ok)} .warn .dot{background:var(--warn)} .bad .dot{background:var(--bad)}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px}
+button.primary{background:var(--accent);color:#fff;border-color:transparent;font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:14px;grid-template-columns:repeat(12,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card h2{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:650}
+.c4{grid-column:span 4}.c6{grid-column:span 6}.c8{grid-column:span 8}.c12{grid-column:span 12}
+@media (max-width:820px){.c4,.c6,.c8{grid-column:span 12}}
+.big{font-size:30px;font-weight:650;line-height:1.1}
+.unit{font-size:14px;color:var(--mute);font-weight:500;margin-left:3px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row .k{color:var(--mute)}
+.tag{font-size:11.5px;padding:1px 7px;border-radius:6px;background:var(--chip);color:var(--mute);margin-left:6px}
+.tag.warn{color:var(--warn)}
+.na{color:var(--mute);font-style:italic}
+.bar{height:10px;background:var(--chip);border-radius:6px;overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+#map{height:280px;border-radius:8px;border:1px solid var(--line)}
+.banks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.bank{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.bank .n{color:var(--mute);font-size:12.5px}
+.bank svg{width:100%;height:34px;margin-top:6px}
+.evt{display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+.evt:first-child{border-top:0}
+.evt time{color:var(--mute);min-width:112px}
+.login{max-width:340px;margin:12vh auto;padding:22px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+.login h1{margin:0 0 4px;font-size:20px}
+.login p{margin:0 0 16px;color:var(--mute)}
+.login input{display:block;width:100%;margin:0 0 10px;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+.err{color:var(--bad);font-size:13px;min-height:18px;margin-top:4px}
+.banner{grid-column:span 12;background:#fff7e6;color:#7a4a00;border:1px solid #f0d49a;border-radius:10px;padding:9px 14px;font-size:13.5px}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+
+<section id="loginView" class="login hide">
+  <h1>RORY</h1>
+  <p>Sign in to view your fleet.</p>
+  <input id="email" type="email" placeholder="Email" autocomplete="username">
+  <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+  <button id="signin" class="primary" style="width:100%">Sign in</button>
+  <div id="loginErr" class="err"></div>
+</section>
+
+<section id="appView" class="hide">
+  <header>
+    <div>
+      <h1 id="vname">S/V Pegasus</h1>
+      <div class="sub" id="vsub">Bareboat charter, BVI</div>
+    </div>
+    <span class="sp"></span>
+    <span id="connPill" class="pill"><span class="dot"></span><span id="connTxt">Loading</span></span>
+    <button id="signout">Sign out</button>
+  </header>
+  <main>
+    <div id="demoBanner" class="banner hide">Demo data. This is not live boat data.</div>
+
+    <div class="card c4">
+      <h2>Position</h2>
+      <div id="posMain"><span class="na">No position yet</span></div>
+      <div id="posRows"></div>
+    </div>
+
+    <div class="card c8">
+      <h2>Track, last 3 hours</h2>
+      <div id="map"></div>
+    </div>
+
+    <div class="card c12">
+      <h2>Batteries</h2>
+      <div id="banks" class="banks"></div>
+      <div id="bankNote" class="sub" style="margin-top:10px;color:var(--mute);font-size:13px"></div>
+    </div>
+
+    <div class="card c6">
+      <h2>Tanks</h2>
+      <div id="tanks"></div>
+    </div>
+
+    <div class="card c6">
+      <h2>Environment</h2>
+      <div id="env"></div>
+    </div>
+
+    <div class="card c6">
+      <h2>Recent events</h2>
+      <div id="events"><span class="na">None yet</span></div>
+    </div>
+
+    <div class="card c6">
+      <h2>Gateway health</h2>
+      <div id="health"></div>
+    </div>
+  </main>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+// ---- configuration (the publishable key is designed to be public; row-level security protects data)
+const SUPABASE_URL = "https://ubmhkrwwcqynlzqzswrn.supabase.co";
+const SUPABASE_KEY = "sb_publishable_UI9P-y5_hplaVsXiCCeqKg_B6UfjPxb";
+const REFRESH_MS = 30000;
+const DEMO = new URLSearchParams(location.search).has("demo");
+
+const $ = id => document.getElementById(id);
+const MS2KN = 1.943844, RAD2DEG = 180 / Math.PI;
+let sb = null, vessel = null, map = null, trackLayer = null, marker = null, timer = null;
+
+// ---- helpers
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function ago(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return Math.round(s) + " s ago";
+  if (s < 5400) return Math.round(s / 60) + " min ago";
+  if (s < 172800) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " d ago";
+}
+function dm(deg, pos, neg) {
+  const h = deg >= 0 ? pos : neg, a = Math.abs(deg), d = Math.floor(a), m = (a - d) * 60;
+  return d + "° " + m.toFixed(3) + "′ " + h;
+}
+const pv = (paths, key) => (paths && paths[key]) || null;
+function qtag(p) {
+  if (!p) return "";
+  if (p.q === "unverified") return '<span class="tag warn">unverified</span>';
+  if (p.q === "stale") return '<span class="tag warn">stale ' + (p.age_s != null ? Math.round(p.age_s / 60) + " min" : "") + '</span>';
+  return "";
+}
+const fmt = (v, d = 1) => (v == null || isNaN(v)) ? "—" : Number(v).toFixed(d);
+
+// ---- rendering
+function renderStatus(st) {
+  const pill = $("connPill"); pill.className = "pill";
+  if (!st) { $("connTxt").textContent = "No data yet"; pill.classList.add("warn"); $("health").innerHTML = '<span class="na">Gateway has not reported</span>'; return; }
+  const pl = st.payload || {}, age = (Date.now() - new Date(st.ts).getTime()) / 1000;
+  const online = pl.online !== false && age < 900;
+  pill.classList.add(online ? "ok" : "bad");
+  $("connTxt").textContent = online ? "Online · " + ago(st.ts) : "Offline · last seen " + ago(st.ts);
+  const rows = [
+    ["Uplink agent", pl.agent ? "v" + esc(String(pl.agent).replace(/^rory-uplink\s*/, "")) : "—"],
+    ["Agent uptime", pl.uptime_s != null ? (pl.uptime_s >= 3600 ? fmt(pl.uptime_s / 3600, 1) + " h" : Math.round(pl.uptime_s / 60) + " min") : "—"],
+    ["Signal K paths tracked", pl.paths != null ? pl.paths : "—"],
+    ["Backlog queued", pl.queue != null ? pl.queue + " messages" : "—"],
+    ["Dropped messages", pl.dropped != null ? pl.dropped : "—"],
+    ["Gateway CPU temp", pl.cpu_temp_c != null ? fmt(pl.cpu_temp_c, 1) + " °C" : "—"],
+    ["Memory available", pl.mem_avail_mb != null ? pl.mem_avail_mb + " MB" : "—"],
+    ["Swap used", pl.swap_used_mb != null ? pl.swap_used_mb + " MB" : "—"],
+    ["Clock skew", pl.skew_s != null ? fmt(pl.skew_s, 1) + " s" : "—"],
+  ];
+  $("health").innerHTML = rows.map(r => `<div class="row"><span class="k">${r[0]}</span><span>${r[1]}</span></div>`).join("");
+}
+
+function renderPos(pos) {
+  if (!pos) { $("posMain").innerHTML = '<span class="na">No position yet</span>'; $("posRows").innerHTML = ""; return; }
+  const sog = pos.sog != null ? pos.sog * MS2KN : null;
+  $("posMain").innerHTML = `<div class="big">${fmt(sog, 1)}<span class="unit">kn</span></div><div class="sub" style="color:var(--mute)">${sog != null && sog < 0.5 ? "At rest" : "Underway"} · ${ago(pos.ts)}</div>`;
+  const rows = [
+    ["Latitude", dm(pos.lat, "N", "S")],
+    ["Longitude", dm(pos.lon, "E", "W")],
+    ["Heading (mag)", pos.hdg != null ? fmt(pos.hdg * RAD2DEG, 0) + "°" : "—"],
+    ["Course (true)", pos.cog != null ? fmt(pos.cog * RAD2DEG, 0) + "°" : '<span class="na">n/a at rest</span>'],
+  ];
+  $("posRows").innerHTML = rows.map(r => `<div class="row"><span class="k">${r[0]}</span><span>${r[1]}</span></div>`).join("");
+}
+
+function spark(vals) {
+  if (vals.length < 2) return "";
+  const w = 200, h = 34, mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 0.2;
+  const pts = vals.map((v, i) => [(i / (vals.length - 1)) * w, h - 3 - ((v - mn) / span) * (h - 6)]);
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.6" points="${pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}"/></svg>`;
+}
+
+function renderBatteries(paths, history) {
+  const ids = new Set();
+  Object.keys(paths || {}).forEach(k => { const m = k.match(/^electrical\.batteries\.(\d+)\.voltage$/); if (m) ids.add(+m[1]); });
+  const list = [...ids].sort((a, b) => a - b);
+  if (!list.length) { $("banks").innerHTML = '<span class="na">No battery data yet</span>'; $("bankNote").textContent = ""; return; }
+  $("banks").innerHTML = list.map(i => {
+    const v = pv(paths, `electrical.batteries.${i}.voltage`);
+    const series = history.map(r => r.paths && r.paths[`electrical.batteries.${i}.voltage`]).filter(Boolean).map(p => p.mean ?? p.last).reverse();
+    const cur = pv(paths, `electrical.batteries.${i}.current`), soc = pv(paths, `electrical.batteries.${i}.capacity.stateOfCharge`);
+    const extra = (cur || soc) ? '<div class="n">Current, charge level: <span class="na">not available</span></div>' : "";
+    return `<div class="bank"><div class="n">Battery bank ${i} (instance ${i})</div>
+      <div class="big" style="font-size:26px">${fmt(v && v.last, 2)}<span class="unit">V</span>${qtag(v)}</div>${spark(series)}${extra}</div>`;
+  }).join("");
+  $("bankNote").textContent = "Voltage only. The battery monitor does not send current or state of charge on the boat network yet, so those are not shown. Bank names will be added once instances are mapped to the house and start batteries.";
+}
+
+function renderTanks(paths) {
+  const defs = [
+    ["tanks.freshWater.0.currentLevel", "Fresh water"],
+    ["tanks.fuel.0.currentLevel", "Fuel"],
+    ["tanks.freshWater.1.currentLevel", "Fresh water 2"],
+    ["tanks.fuel.1.currentLevel", "Fuel 2"],
+  ];
+  const out = [];
+  for (const [k, label] of defs) {
+    const p = pv(paths, k); if (!p) continue;
+    const unver = p.q === "unverified" || /\.1\.currentLevel$/.test(k);
+    const pct = p.last != null ? Math.round(p.last * 100) : null;
+    out.push(`<div style="padding:7px 0"><div style="display:flex;justify-content:space-between"><span>${label}${unver ? '<span class="tag warn">unverified</span>' : ""}${p.q === "stale" ? qtag(p) : ""}</span><b>${pct != null ? pct + " %" : "—"}</b></div><div class="bar"><i style="width:${pct || 0}%"></i></div></div>`);
+  }
+  $("tanks").innerHTML = out.join("") || '<span class="na">No tank data yet</span>';
+}
+
+function renderEnv(paths) {
+  const rows = [];
+  const d = pv(paths, "environment.depth.belowKeel"); if (d) rows.push(["Depth below keel", fmt(d.last, 1) + " m", qtag(d)]);
+  const w = pv(paths, "environment.water.temperature"); if (w) rows.push(["Water temperature", fmt(w.last - 273.15, 1) + " °C", qtag(w)]);
+  const ws = pv(paths, "environment.wind.speedApparent"); if (ws) rows.push(["Apparent wind", fmt(ws.last * MS2KN, 1) + " kn", qtag(ws)]);
+  $("env").innerHTML = rows.map(r => `<div class="row"><span class="k">${r[0]}</span><span>${r[1]}${r[2]}</span></div>`).join("") || '<span class="na">No environment data yet</span>';
+}
+
+function renderEvents(evts) {
+  if (!evts.length) { $("events").innerHTML = '<span class="na">None yet</span>'; return; }
+  $("events").innerHTML = evts.map(e => {
+    const t = new Date(e.ts).toLocaleString([], {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"});
+    const label = e.message ? esc(e.message) : esc(e.path.replace(/^environment\.inside\./, "").replace(/\.contact$/, "")) + " " + esc(e.state);
+    return `<div class="evt"><time>${t}</time><span>${label}<span class="tag">${esc(e.kind)}</span></span></div>`;
+  }).join("");
+}
+
+function renderTrack(rows) {
+  if (!map) {
+    map = L.map("map", { zoomControl: true, attributionControl: true });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
+    map.setView([18.41, -64.61], 13);
+  }
+  if (trackLayer) { trackLayer.remove(); trackLayer = null; }
+  if (marker) { marker.remove(); marker = null; }
+  if (!rows.length) return;
+  const pts = rows.map(r => [r.lat, r.lon]).reverse();
+  trackLayer = L.polyline(pts, { color: "#0a6ea8", weight: 3 }).addTo(map);
+  marker = L.circleMarker(pts[pts.length - 1], { radius: 8, color: "#fff", weight: 2, fillColor: "#0a6ea8", fillOpacity: 1 }).addTo(map);
+  const moved = rows.some(r => Math.abs(r.lat - rows[0].lat) > 0.0004 || Math.abs(r.lon - rows[0].lon) > 0.0004);
+  if (moved) map.fitBounds(trackLayer.getBounds(), { padding: [30, 30], maxZoom: 16 });
+  else map.setView(pts[pts.length - 1], 16);
+}
+
+// ---- data
+function demoData() {
+  const now = Date.now(), iso = ms => new Date(ms).toISOString();
+  const s = (v, n = 60) => ({ n, last: v, min: v, max: v, mean: v, q: "live" });
+  const paths = {
+    "electrical.batteries.0.voltage": s(13.7), "electrical.batteries.2.voltage": s(13.77),
+    "electrical.batteries.5.voltage": s(13.8), "electrical.batteries.6.voltage": s(13.7),
+    "electrical.batteries.0.current": { n: 60, last: 0, q: "unverified" },
+    "electrical.batteries.0.capacity.stateOfCharge": { n: 60, last: 1, q: "unverified" },
+    "tanks.freshWater.0.currentLevel": s(0.66), "tanks.fuel.0.currentLevel": s(0.89),
+    "environment.depth.belowKeel": s(1.33), "environment.water.temperature": s(304.53),
+  };
+  const hist = Array.from({ length: 120 }, (_, i) => ({ ts: iso(now - i * 60000), paths: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, v.mean != null ? { ...v, mean: v.mean + Math.sin(i / 9) * 0.06 } : v])) }));
+  const track = Array.from({ length: 30 }, (_, i) => ({ lat: 18.4118 + Math.sin(i) * 0.00002, lon: -64.6139 + Math.cos(i) * 0.00002 }));
+  return {
+    status: { ts: iso(now - 40000), payload: { online: true, agent: "0.1.0", paths: 25, dropped: 0, uptime_s: 301, queue: 0, cpu_temp_c: 61.4, mem_avail_mb: 5230, swap_used_mb: 12, skew_s: 0.2 } },
+    pos: { ts: iso(now - 60000), lat: 18.4118126, lon: -64.6139288, sog: 0.02, hdg: 0.74 },
+    latest: { ts: iso(now - 60000), paths }, hist, track,
+    evts: [{ ts: iso(now - 3600000), path: "environment.inside.portFwdCabin.contact", kind: "state", state: "open" }],
+  };
+}
+
+async function load() {
+  let d;
+  if (DEMO) d = demoData();
+  else {
+    const q = (t, f) => f(sb.from(t));
+    const since = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+    const [st, pos, lat, hist, trk, evt] = await Promise.all([
+      sb.from("vessel_status").select("ts,payload").eq("vessel_id", vessel.id).maybeSingle(),
+      sb.from("vessel_last_pos").select("ts,lat,lon,sog,cog,hdg").eq("vessel_id", vessel.id).maybeSingle(),
+      sb.from("vessel_latest").select("ts,paths").eq("vessel_id", vessel.id).maybeSingle(),
+      sb.from("vessel_minute").select("ts,paths").eq("vessel_id", vessel.id).gte("ts", since).order("ts", { ascending: false }).limit(180),
+      sb.from("vessel_pos").select("lat,lon").eq("vessel_id", vessel.id).gte("ts", since).order("ts", { ascending: false }).limit(180),
+      sb.from("vessel_event").select("ts,path,kind,state,message").eq("vessel_id", vessel.id).order("ts", { ascending: false }).limit(12),
+    ]);
+    for (const r of [st, pos, lat, hist, trk, evt]) if (r.error) throw r.error;
+    d = { status: st.data, pos: pos.data, latest: lat.data, hist: hist.data || [], track: trk.data || [], evts: evt.data || [] };
+  }
+  renderStatus(d.status); renderPos(d.pos);
+  const paths = d.latest && d.latest.paths;
+  renderBatteries(paths, d.hist); renderTanks(paths); renderEnv(paths);
+  renderEvents(d.evts); renderTrack(d.track);
+}
+
+async function start() {
+  $("loginView").classList.add("hide"); $("appView").classList.remove("hide");
+  if (DEMO) { $("demoBanner").classList.remove("hide"); vessel = { id: "pegasus", name: "S/V Pegasus" }; }
+  else {
+    const { data, error } = await sb.from("vessels").select("id,name").order("name");
+    if (error || !data || !data.length) { $("connTxt").textContent = "No vessels for this account"; return; }
+    vessel = data[0];
+  }
+  $("vname").textContent = vessel.name;
+  const tick = () => load().catch(e => { $("connTxt").textContent = "Error loading: " + (e.message || e); $("connPill").className = "pill bad"; });
+  await tick(); clearInterval(timer); timer = setInterval(tick, REFRESH_MS);
+  setTimeout(() => map && map.invalidateSize(), 200);
+}
+
+function showLogin() { clearInterval(timer); $("appView").classList.add("hide"); $("loginView").classList.remove("hide"); }
+
+(async function init() {
+  if (DEMO) { start(); return; }
+  if (SUPABASE_KEY.startsWith("PASTE")) { document.body.innerHTML = "<p style='padding:24px'>Dashboard is not configured yet (missing publishable key).</p>"; return; }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  $("signin").onclick = async () => {
+    $("loginErr").textContent = "";
+    const { error } = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("pw").value });
+    if (error) $("loginErr").textContent = "Sign-in failed. Check your email and password.";
+    else { $("pw").value = ""; start(); }
+  };
+  $("pw").addEventListener("keydown", e => { if (e.key === "Enter") $("signin").click(); });
+  $("signout").onclick = async () => { await sb.auth.signOut(); showLogin(); };
+  const { data } = await sb.auth.getSession();
+  if (data.session) start(); else showLogin();
+})();
+</script>
+</body>
+</html>
