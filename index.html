@@ -384,19 +384,22 @@ function renderAll(d) {
     const rpm = ev(en.id, "revolutions"), rt = ev(en.id, "runTime");
     if (!rpm && !rt) return NA("Not seen yet");
     const fresh = rpm && rpm.q !== "stale" && rpm.n > 0;
-    const hrs = rt && rt.last != null ? " · " + fmt(rt.last / 3600, 1) + " h" : "";
-    return fresh && rpm.last > 0 ? `<b>Running</b> ${Math.round(rpm.last * 60)} rpm${hrs}` : "Stopped" + hrs;
+    return fresh && rpm.last > 0 ? `<b>Running</b> ${Math.round(rpm.last * 60)} rpm` : "Stopped";
   };
   const anyEng = ENGINES.some(en => ev(en.id, "revolutions") || ev(en.id, "runTime"));
   const anyRun = ENGINES.some(en => { const r = ev(en.id, "revolutions"); return r && r.q !== "stale" && r.n > 0 && r.last > 0; });
+  const hrsAll = ENGINES.map(en => { const rt = ev(en.id, "runTime"); return rt && rt.last != null ? fmt(rt.last / 3600, 1) : "—"; });
   const tmp = ENGINES.map(en => { const t = ev(en.id, "temperature"); return t && t.last != null ? fmt(t.last - 273.15, 0) : "—"; });
+  const oil = ENGINES.map(en => { const o = ev(en.id, "oilPressure"), r = ev(en.id, "revolutions"); return o && o.last != null && r && r.q !== "stale" && r.last > 0 ? fmt(o.last * 0.000145038, 0) : "—"; });
   const alt = ENGINES.map(en => { const a = ev(en.id, "alternatorVoltage"); return a && a.last != null ? fmt(a.last, 1) : "—"; });
   T.push(tile("Propulsion", anyEng ? "ok" : "none", anyRun ? "Running" : anyEng ? "OK" : "No data yet", "live",
     ENGINES.map(en => row(en.label, engState(en))).join("") +
-    row("Coolant (unverified)", anyEng ? tmp.join(" / ") + " °C" : NA("No data")) +
+    row("Engine hours", anyEng ? hrsAll.join(" / ") + " h" : NA("No data")) +
+    row("Coolant temperature", anyEng ? tmp.join(" / ") + " °C" : NA("No data")) +
+    row("Oil pressure", anyRun ? oil.join(" / ") + " psi" : NA("Engines stopped")) +
     row(anyRun ? "Alternators" : "Alternators, last run", anyEng ? alt.join(" / ") + " V" + "" : NA("No data")) +
     row("Generator", NA("Not on the boat network")),
-    (ENGINE_LABELS_CONFIRMED ? "" : "Port and starboard follow Signal K's convention and are not yet confirmed. ") + "Oil pressure and fuel rate are not shown until verified."));
+    (ENGINE_LABELS_CONFIRMED ? "" : "Port and starboard follow Signal K's convention and are not yet confirmed. ") + "Fuel rate, engine load and boost are not shown until verified."));
   // Fuel
   const lvl = (p, label, extra) => { if (!p) return ""; const pct = p.last != null ? Math.round(p.last * 100) : null; return `<div class="tank"><div class="l"><span>${label}${extra || ""}${p.q === "stale" ? qtag(p) : ""}</span><b>${pct != null ? pct + " %" : "—"}</b></div><div class="bar"><i style="width:${pct || 0}%"></i></div></div>`; };
   const fuelSt = !s.fuel ? "none" : s.fuel.last < RULES.fuelTarget ? "watch" : "ok";
@@ -494,6 +497,7 @@ function demoData() {
     "propulsion.port.revolutions": { n: 0, last: 0, q: "stale" }, "propulsion.starboard.revolutions": { n: 0, last: 0, q: "stale" },
     "propulsion.port.runTime": { n: 0, last: 3268260, q: "stale" }, "propulsion.starboard.runTime": { n: 0, last: 3225240, q: "stale" },
     "propulsion.port.temperature": { n: 0, last: 349.15, q: "stale" }, "propulsion.starboard.temperature": { n: 0, last: 349.15, q: "stale" },
+    "propulsion.port.oilPressure": { n: 0, last: 0, q: "stale" }, "propulsion.starboard.oilPressure": { n: 0, last: 4000, q: "stale" },
     "propulsion.port.alternatorVoltage": { n: 0, last: 14.1, q: "stale" }, "propulsion.starboard.alternatorVoltage": { n: 0, last: 14.1, q: "stale" },
     "electrical.batteries.0.current": { n: 60, last: -0.4, q: "unverified" },
     "environment.depth.belowKeel": s(1.33), "environment.water.temperature": s(304.53), "environment.wind.speedApparent": s(5.0),

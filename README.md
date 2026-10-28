@@ -24,3 +24,8 @@ Single static page: `index.html`. No build step.
 - Propulsion tile shows each engine's state (Stopped / Running with rpm), engine hours from `propulsion.<id>.runTime` (seconds), coolant temperature (marked unverified) and alternator voltage. Oil pressure, fuel rate, load and boost are not shown until verified.
 - `ENGINES` and `ENGINE_LABELS_CONFIRMED` near the top of the script control the engine names (Signal K calls them port and starboard by N2K convention). Set the flag to true after the crew confirms which engine is which.
 - Electrical tile shows bank 0 current. Banks 2, 5 and 6 send voltage only.
+
+## v2.3 changes
+- Coolant temperature no longer marked unverified: both engines warmed from 35 C to 76-77 C during the 28 Oct 2026 run.
+- Oil pressure is shown (psi) only while an engine is running: it read 268-272 kPa at idle and up to 408 kPa during the run. At rest the tile shows "Engines stopped".
+- Fuel rate, engine load and boost remain hidden until verified.
