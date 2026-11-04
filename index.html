@@ -55,6 +55,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .na{color:var(--slate);font-style:italic}
 .tag{font-size:11.5px;padding:1px 7px;border-radius:6px;background:var(--nonebg);color:var(--nonefg);margin-left:6px}
 .tag.warn{background:var(--watchbg);color:var(--watchfg)}
+.es{font-weight:700;padding:1px 7px;border-radius:6px}.es.w{background:var(--watchbg);color:var(--watchfg)}.es.f{background:var(--alertbg);color:var(--alertfg)}
 /* map card */
 .mapcard{position:relative;border-radius:10px;overflow:hidden;background:#06101a;margin-bottom:16px}
 #map{height:330px;width:100%}
@@ -203,7 +204,7 @@ const RULES = {
   batteryCheckPoints: 5, batteryFailPoints: 15,
   silentMinutes: 15,                             // gateway silent this long: No data
   hatchOpenPoints: 5,
-  engineSeenPoints: 4, requireEngineData: true,  // engines not seen yet counts against the score until they report
+  engineWarnPoints: 5, engineFaultPoints: 15,   // an engine warning / fault while running (a fault also caps the score)
   maintSoonDays: 30, maintSoonPoints: 2, maintOverduePoints: 10,
   safetyCap: 50                                  // a safety-critical alert caps the score
 };
@@ -221,6 +222,14 @@ const MAINT = [
 // Engines as named by Signal K (N2K instance 0 = port, 1 = starboard by convention). Set ENGINE_LABELS_CONFIRMED = true after the crew has run each engine alone.
 const ENGINES = [{ id: "port", label: "Port engine" }, { id: "starboard", label: "Starboard engine" }];
 const ENGINE_LABELS_CONFIRMED = false;
+// Engine status (v2.5). Yanmar flags (PGN 127489) all arrive as state "alarm", so severity is set by flag name:
+// these are faults, preheat/neutral-start are normal during a start, anything else is a warning.
+const ENGINE_FAULT_FLAGS = ["overTemperature", "lowOilPressure", "lowOilLevel", "lowCoolantLevel", "waterFlow", "lowFuelPressure",
+  "emergencyStopMode", "shuttingDown", "warningLevel2", "revLimitExceeded"];
+const ENGINE_IGNORE_FLAGS = ["preheatIndicator", "neutralStartProtect"];
+// rory-uplink only reports alarms returning to normal from v0.3 (deployed 2026-11-04); older alarm events never cleared.
+const ENGINE_EVENTS_SINCE = "2026-11-04T16:00:00Z";
+const LOCAL_TZ = "America/Tortola";   // AST
 const WM_CURRENT_PATH = "electrical.watermaker.current";   // amps, from a current monitor on its 120 V plug
 const WM_FILTER_HOURS_PATH = "electrical.watermaker.filterHours";
 
@@ -291,8 +300,13 @@ function derive(d) {
   if (openHatches.length) { held.push({ label: `${openHatches.length} hatch or door open`, pts: RULES.hatchOpenPoints }); checks.push(`Open: ${openHatches.join(", ")}.`); }
 
   // engines
-  const engineSeen = Object.keys(paths).some(k => /^propulsion\./.test(k));
-  if (RULES.requireEngineData && !engineSeen) { held.push({ label: "Engines not yet seen", pts: RULES.engineSeenPoints }); checks.push("Engine data has not been seen yet. Run both engines for a minute."); }
+  const engines = ENGINES.map(en => ({ ...en, ...engineInfo(d, en) }));
+  const engineSeen = engines.some(e => e.seen != null);
+  engines.forEach(e => {
+    const names = l => l.map(f => pretty(f).toLowerCase()).join(", ");
+    if (e.faults.length) { alarm = true; held.push({ label: `${e.label} fault`, pts: RULES.engineFaultPoints }); checks.push(`${e.label} fault: ${names(e.faults)}.`); }
+    else if (e.warns.length) { held.push({ label: `${e.label} warning`, pts: RULES.engineWarnPoints }); checks.push(`${e.label} warning: ${names(e.warns)}.`); }
+  });
 
   // maintenance by date
   MAINT.forEach(m => {
@@ -307,7 +321,7 @@ function derive(d) {
   if (!online) { status = "off"; label = st ? "No data. Last heard " + ago(st.ts) : "No data yet"; score = null; }
   else if (alarm) { status = "alarm"; label = "Alarm"; }
   else if (checks.length) { status = "check"; label = "Check before handover"; }
-  return { paths, pl, online, held, checks, score, status, label, water, fuel, vmin, volts, engineSeen, openHatches, latestState };
+  return { paths, pl, online, held, checks, score, status, label, water, fuel, vmin, volts, engineSeen, engines, openHatches, latestState };
 }
 
 // ---- rendering helpers
@@ -333,6 +347,29 @@ function tile(name, st, stlab, badge, rowsHtml, foot, cls) {
 }
 const row = (k, v) => `<div class="r"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const NA = t => `<span class="na">${t}</span>`;
+const localTime = t => new Date(t).toLocaleString("en-US", { timeZone: LOCAL_TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+// One engine's state: running from live RPM; warning/fault from its alarm events while running; last seen from the
+// newest of its paths (the uplink keeps engine values with age_s while the engine is off).
+function engineInfo(d, en) {
+  const paths = (d.latest && d.latest.paths) || {}, pre = `propulsion.${en.id}.`, p = k => pv(paths, pre + k);
+  const rpm = p("revolutions"), running = !!(rpm && rpm.q !== "stale" && rpm.n > 0 && rpm.last > 0);
+  const winEnd = d.latest && d.latest.ts ? new Date(d.latest.ts).getTime() + 60000 : null;
+  let seen = null;
+  if (winEnd != null) Object.entries(paths).forEach(([k, v]) => {
+    if (!k.startsWith(pre) || !v) return;
+    const t = v.q === "stale" && v.age_s != null ? winEnd - v.age_s * 1000 : winEnd;
+    if (seen == null || t > seen) seen = t;
+  });
+  const latest = {}, since = new Date(ENGINE_EVENTS_SINCE).getTime();
+  (d.engEvts || []).forEach(e => {            // newest first: the first event per flag is its current state
+    const m = /^notifications\.propulsion\.([^.]+)\.(.+)$/.exec(e.path || "");
+    if (m && m[1] === en.id && !(m[2] in latest) && new Date(e.ts).getTime() >= since) latest[m[2]] = e.state;
+  });
+  const flags = running ? Object.keys(latest).filter(f => latest[f] !== "normal" && !ENGINE_IGNORE_FLAGS.includes(f)) : [];
+  const faults = flags.filter(f => ENGINE_FAULT_FLAGS.includes(f)), warns = flags.filter(f => !ENGINE_FAULT_FLAGS.includes(f));
+  return { running, rpm, seen, faults, warns, status: faults.length ? "fault" : warns.length ? "warning" : running ? "running" : "off",
+    hours: p("runTime"), temp: p("temperature"), oil: p("oilPressure"), alt: p("alternatorVoltage") };
+}
 const ok = (c, w) => c === "alert" ? ["alert", "Alert"] : c === "watch" ? ["watch", "Watch"] : c === "none" ? ["none", "No data yet"] : ["ok", "OK"];
 
 function renderAll(d) {
@@ -378,26 +415,27 @@ function renderAll(d) {
   T.push(tile("Safety critical", safeSt, safeSt === "ok" ? "OK" : "Watch", "man",
     row("Bilge pump", NA("Sensor not fitted yet")) + row("Fire extinguishers", esc(fe.detail)) + row("Flares", esc(fl.detail)) + row("Hatches open", s.openHatches.length ? esc(s.openHatches.join(", ")) : hs ? "None" : NA("No sensor events yet")),
     "Bilge and smoke alarms need sensors. The rest is checked at handover."));
-  // Propulsion
-    const ev = (id, k) => pv(paths, `propulsion.${id}.${k}`);
-  const engState = en => {
-    const rpm = ev(en.id, "revolutions"), rt = ev(en.id, "runTime");
-    if (!rpm && !rt) return NA("Not seen yet");
-    const fresh = rpm && rpm.q !== "stale" && rpm.n > 0;
-    return fresh && rpm.last > 0 ? `<b>Running</b> ${Math.round(rpm.last * 60)} rpm` : "Stopped";
+  // Propulsion (v2.5): Running / Off / Warning / Fault per engine. Hours are the last reported value;
+  // coolant, oil and alternator are only meaningful while an engine runs, so they are blank otherwise.
+  const E = s.engines, anyRun = E.some(e => e.running);
+  const engState = e => {
+    const rpmTxt = e.running ? ` ${Math.round(e.rpm.last * 60)} rpm` : "";
+    const names = l => esc(l.map(f => pretty(f)).join(", "));
+    if (e.status === "fault") return `<span class="es f">Fault</span>${rpmTxt} · ${names(e.faults)}`;
+    if (e.status === "warning") return `<span class="es w">Warning</span>${rpmTxt} · ${names(e.warns)}`;
+    if (e.running) return `<b>Running</b>${rpmTxt}`;
+    return "Off" + (e.seen != null ? " · last seen " + esc(localTime(e.seen)) : "");
   };
-  const anyEng = ENGINES.some(en => ev(en.id, "revolutions") || ev(en.id, "runTime"));
-  const anyRun = ENGINES.some(en => { const r = ev(en.id, "revolutions"); return r && r.q !== "stale" && r.n > 0 && r.last > 0; });
-  const hrsAll = ENGINES.map(en => { const rt = ev(en.id, "runTime"); return rt && rt.last != null ? fmt(rt.last / 3600, 1) : "—"; });
-  const tmp = ENGINES.map(en => { const t = ev(en.id, "temperature"); return t && t.last != null ? fmt(t.last - 273.15, 0) : "—"; });
-  const oil = ENGINES.map(en => { const o = ev(en.id, "oilPressure"), r = ev(en.id, "revolutions"); return o && o.last != null && r && r.q !== "stale" && r.last > 0 ? fmt(o.last * 0.000145038, 0) : "—"; });
-  const alt = ENGINES.map(en => { const a = ev(en.id, "alternatorVoltage"); return a && a.last != null ? fmt(a.last, 1) : "—"; });
-  T.push(tile("Propulsion", anyEng ? "ok" : "none", anyRun ? "Running" : anyEng ? "OK" : "No data yet", "live",
-    ENGINES.map(en => row(en.label, engState(en))).join("") +
-    row("Engine hours", anyEng ? hrsAll.join(" / ") + " h" : NA("No data")) +
-    row("Coolant temperature", anyEng ? tmp.join(" / ") + " °C" : NA("No data")) +
-    row("Oil pressure", anyRun ? oil.join(" / ") + " psi" : NA("Engines stopped")) +
-    row(anyRun ? "Alternators" : "Alternators, last run", anyEng ? alt.join(" / ") + " V" + "" : NA("No data")) +
+  const per = (fn) => E.map(e => { const v = fn(e); return v == null ? "—" : v; }).join(" / ");
+  const live = (e, x) => e.running && x && x.last != null;
+  const hrs = E.some(e => e.hours && e.hours.last != null) ? per(e => e.hours && e.hours.last != null ? fmt(e.hours.last / 3600, 1) : null) + " h" : NA("Not reported yet");
+  const pSt = E.some(e => e.status === "fault") ? ["alert", "Fault"] : E.some(e => e.status === "warning") ? ["watch", "Warning"] : anyRun ? ["ok", "Running"] : [s.engineSeen ? "ok" : "none", "Off"];
+  T.push(tile("Propulsion", pSt[0], pSt[1], "live",
+    E.map(e => row(e.label, engState(e))).join("") +
+    row("Engine hours", hrs) +
+    row("Coolant temperature", anyRun ? per(e => live(e, e.temp) ? fmt(e.temp.last - 273.15, 0) : null) + " °C" : "") +
+    row("Oil pressure", anyRun ? per(e => live(e, e.oil) ? fmt(e.oil.last * 0.000145038, 0) : null) + " psi" : "") +
+    row("Alternators", anyRun ? per(e => live(e, e.alt) ? fmt(e.alt.last, 1) : null) + " V" : "") +
     row("Generator", NA("Not on the boat network")),
     (ENGINE_LABELS_CONFIRMED ? "" : "Port and starboard follow Signal K's convention and are not yet confirmed. ") + "Fuel rate, engine load and boost are not shown until verified."));
   // Fuel
@@ -502,11 +540,11 @@ function demoData() {
     "electrical.batteries.0.capacity.stateOfCharge": { n: 60, last: 1, q: "unverified" },
     "tanks.freshWater.0.currentLevel": s(0.66), "tanks.fuel.0.currentLevel": s(0.89),
     "tanks.freshWater.1.currentLevel": { ...s(1), q: "unverified" }, "tanks.fuel.1.currentLevel": { ...s(1), q: "unverified" },
-    "propulsion.port.revolutions": { n: 0, last: 0, q: "stale" }, "propulsion.starboard.revolutions": { n: 0, last: 0, q: "stale" },
-    "propulsion.port.runTime": { n: 0, last: 3268260, q: "stale" }, "propulsion.starboard.runTime": { n: 0, last: 3225240, q: "stale" },
-    "propulsion.port.temperature": { n: 0, last: 349.15, q: "stale" }, "propulsion.starboard.temperature": { n: 0, last: 349.15, q: "stale" },
-    "propulsion.port.oilPressure": { n: 0, last: 0, q: "stale" }, "propulsion.starboard.oilPressure": { n: 0, last: 4000, q: "stale" },
-    "propulsion.port.alternatorVoltage": { n: 0, last: 14.1, q: "stale" }, "propulsion.starboard.alternatorVoltage": { n: 0, last: 14.1, q: "stale" },
+    "propulsion.port.revolutions": s(13.67), "propulsion.port.runTime": s(3268260), "propulsion.port.temperature": s(355.15),
+    "propulsion.port.oilPressure": s(310000), "propulsion.port.alternatorVoltage": s(14.1),
+    "propulsion.starboard.revolutions": { n: 0, last: 0, age_s: 75600, q: "stale" }, "propulsion.starboard.runTime": { n: 0, last: 3225240, age_s: 75600, q: "stale" },
+    "propulsion.starboard.temperature": { n: 0, last: 349.15, age_s: 75600, q: "stale" }, "propulsion.starboard.oilPressure": { n: 0, last: 0, age_s: 75600, q: "stale" },
+    "propulsion.starboard.alternatorVoltage": { n: 0, last: 14.1, age_s: 75600, q: "stale" },
     "electrical.batteries.0.current": { n: 60, last: -0.4, q: "unverified" },
     "environment.depth.belowKeel": s(1.33), "environment.water.temperature": s(304.53), "environment.wind.speedApparent": s(5.0),
     "environment.inside.portGalleyFwd.temperature": s(311.15), "environment.inside.stbdGalleyFwd.temperature": s(308.15), "environment.inside.stbdAftCabin.temperature": { n: 0, last: 313.15, age_s: 1500, q: "stale" },
@@ -518,6 +556,8 @@ function demoData() {
     pos: { ts: iso(now - 60000), lat: 18.4118126, lon: -64.6139288, sog: 0.02, hdg: 0.74 },
     latest: { ts: iso(now - 60000), paths }, hist, track,
     evts: [{ ts: iso(now - 3600000), path: "environment.inside.portFwdCabin.contact", kind: "state", state: "open" }],
+    engEvts: [{ ts: iso(now - 120000), path: "notifications.propulsion.port.checkEngine", state: "alarm" },
+      { ts: iso(now - 300000), path: "notifications.propulsion.port.preheatIndicator", state: "alarm" }],
   };
 }
 
@@ -526,16 +566,17 @@ async function load() {
   if (DEMO) d = demoData();
   else {
     const since = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
-    const [st, pos, lat, hist, trk, evt] = await Promise.all([
+    const [st, pos, lat, hist, trk, evt, eng] = await Promise.all([
       sb.from("vessel_status").select("ts,payload").eq("vessel_id", vessel.id).maybeSingle(),
       sb.from("vessel_last_pos").select("ts,lat,lon,sog,cog,hdg").eq("vessel_id", vessel.id).maybeSingle(),
       sb.from("vessel_latest").select("ts,paths").eq("vessel_id", vessel.id).maybeSingle(),
       sb.from("vessel_minute").select("ts,paths").eq("vessel_id", vessel.id).gte("ts", since).order("ts", { ascending: false }).limit(180),
       sb.from("vessel_pos").select("lat,lon").eq("vessel_id", vessel.id).gte("ts", since).order("ts", { ascending: false }).limit(180),
       sb.from("vessel_event").select("ts,path,kind,state,message").eq("vessel_id", vessel.id).order("ts", { ascending: false }).limit(12),
+      sb.from("vessel_event").select("ts,path,state").eq("vessel_id", vessel.id).like("path", "notifications.propulsion.%").gte("ts", ENGINE_EVENTS_SINCE).order("ts", { ascending: false }).limit(200),
     ]);
-    for (const r of [st, pos, lat, hist, trk, evt]) if (r.error) throw r.error;
-    d = { status: st.data, pos: pos.data, latest: lat.data, hist: hist.data || [], track: trk.data || [], evts: evt.data || [] };
+    for (const r of [st, pos, lat, hist, trk, evt, eng]) if (r.error) throw r.error;
+    d = { status: st.data, pos: pos.data, latest: lat.data, hist: hist.data || [], track: trk.data || [], evts: evt.data || [], engEvts: eng.data || [] };
   }
   renderAll(d);
 }
