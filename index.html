@@ -209,7 +209,19 @@ const RULES = {
   safetyCap: 50                                  // a safety-critical alert caps the score
 };
 // Home base geofence (centre and radius in metres). Edit to the real marina position.
-const BASE = { name: "Road Town base", lat: 18.4118, lon: -64.6139, radius: 400 };
+const BASE = { name: "TMM Base", lat: 18.4118, lon: -64.6139, radius: 400 };
+// Stops visited this charter so far (mooring fields / anchorages), in the order visited. Add to this as the itinerary continues.
+const STOPS = [
+  { name: "Saba Rock Mooring Field", lat: 18.4846, lon: -64.3765, radius: 300 },
+  { name: "Anegada Anchorage", lat: 18.7270, lon: -64.3297, radius: 500 },
+  { name: "Cane Garden Bay Mooring Field", lat: 18.4331, lon: -64.6683, radius: 400 },
+  { name: "White Bay, Jost Van Dyke", lat: 18.4461, lon: -64.7569, radius: 300 },
+];
+// Returns the first geofence (home base checked first, then stops) containing a position, or null.
+function currentZone(lat, lon) {
+  for (const z of [BASE, ...STOPS]) if (metres(lat, lon, z.lat, z.lon) <= z.radius) return z;
+  return null;
+}
 // Maintenance list (hand-edited for now). due = ISO date or null; sample:true shows a "sample" tag.
 const MAINT = [
   { label: "Fire extinguishers", detail: "inspect by 15 Nov", due: "2026-11-15", sample: true },
@@ -397,12 +409,12 @@ function renderAll(d) {
   if (pos) {
     const sog = pos.sog != null ? pos.sog * MS2KN : null;
     const dist = metres(pos.lat, pos.lon, BASE.lat, BASE.lon);
-    const inside = dist <= BASE.radius;
+    const zone = currentZone(pos.lat, pos.lon);
     $("mapSub").textContent = `${dm(pos.lat, "N", "S")}, ${dm(pos.lon, "E", "W")}`;
     $("strip").innerHTML = [
       ["Status", sog != null && sog < 0.5 ? "At rest" : "Underway"], ["Speed", fmt(sog, 1) + " kn"],
       ["Heading (mag)", pos.hdg != null ? fmt(pos.hdg * RAD2DEG, 0) + "°" : "—"],
-      ["Geofence", inside ? "Inside " + BASE.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"], ["Updated", ago(pos.ts)]
+      ["Geofence", zone ? "Inside " + zone.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"], ["Updated", ago(pos.ts)]
     ].map(x => `<div><div class="k">${x[0]}</div><div class="v">${x[1]}</div></div>`).join("");
   } else { $("mapSub").textContent = "No position yet"; $("strip").innerHTML = ""; }
 
@@ -516,7 +528,9 @@ function renderTrack(rows, pos) {
     $("tgFence").onclick = e => { showFence = !showFence; e.target.classList.toggle("on", showFence); if (fenceLayer) showFence ? fenceLayer.addTo(map) : fenceLayer.remove(); };
   }
   [trackLayer, marker, fenceLayer].forEach(l => l && l.remove()); trackLayer = marker = fenceLayer = null;
-  fenceLayer = L.circle([BASE.lat, BASE.lon], { radius: BASE.radius, color: "#c8a84b", weight: 2, dashArray: "6 5", fillColor: "#c8a84b", fillOpacity: 0.08 });
+  fenceLayer = L.layerGroup([BASE, ...STOPS].map(z =>
+    L.circle([z.lat, z.lon], { radius: z.radius, color: "#c8a84b", weight: 2, dashArray: "6 5", fillColor: "#c8a84b", fillOpacity: 0.08 }).bindTooltip(z.name)
+  ));
   if (showFence) fenceLayer.addTo(map);
   const pts = (rows || []).map(r => [r.lat, r.lon]).reverse();
   if (pts.length) {
