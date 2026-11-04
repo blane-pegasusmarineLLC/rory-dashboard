@@ -428,9 +428,17 @@ function renderAll(d) {
     row("Intrusion alert", NA("Not set up yet")) + row("Anchor alarm", NA("Not set up yet"))));
   // Environment
   const dp = pv(paths, "environment.depth.belowKeel"), wt = pv(paths, "environment.water.temperature"), wsp = pv(paths, "environment.wind.speedApparent");
-  T.push(tile("Environment", dp || wt || wsp ? "ok" : "none", dp || wt || wsp ? "OK" : "No data yet", "live",
+  // Cabin temperature = warmest interior sensor (worst case). Source today: Aqara hatch sensors'
+  // device_temperature (1 °C steps, report ~hourly or on open/close), so readings between reports
+  // arrive as q "stale" with age_s; accept anything under 2 h old.
+  const cab = Object.entries(paths || {})
+    .filter(([k, v]) => /^environment\.inside\.[^.]+\.temperature$/.test(k) && v && v.last != null && (v.q !== "stale" || (v.age_s || 0) <= 7200))
+    .sort((a, b) => b[1].last - a[1].last);
+  const cabTxt = cab.length ? fmt(cab[0][1].last - 273.15, 0) + " °C · " + esc(pretty(cab[0][0].split(".")[2])) +
+    (cab.length > 1 ? ` (warmest of ${cab.length})` : "") : null;
+  T.push(tile("Environment", dp || wt || wsp || cab.length ? "ok" : "none", dp || wt || wsp || cab.length ? "OK" : "No data yet", "live",
     row("Depth below keel", dp ? fmt(dp.last, 1) + " m" + qtag(dp) : NA("No data")) + row("Water temperature", wt ? fmt(wt.last - 273.15, 1) + " °C" + qtag(wt) : NA("No data")) +
-    row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + row("Cabin temperature", NA("No sensor yet"))));
+    row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + row("Cabin temperature", cabTxt ? cabTxt : NA("No sensor yet"))));
   // Position and geofence
   const moved = d.track && d.track.some(r => Math.abs(r.lat - d.track[0].lat) > 0.0004 || Math.abs(r.lon - d.track[0].lon) > 0.0004);
   const inside = pos ? metres(pos.lat, pos.lon, BASE.lat, BASE.lon) <= BASE.radius : null;
@@ -501,6 +509,7 @@ function demoData() {
     "propulsion.port.alternatorVoltage": { n: 0, last: 14.1, q: "stale" }, "propulsion.starboard.alternatorVoltage": { n: 0, last: 14.1, q: "stale" },
     "electrical.batteries.0.current": { n: 60, last: -0.4, q: "unverified" },
     "environment.depth.belowKeel": s(1.33), "environment.water.temperature": s(304.53), "environment.wind.speedApparent": s(5.0),
+    "environment.inside.portGalleyFwd.temperature": s(311.15), "environment.inside.stbdGalleyFwd.temperature": s(308.15), "environment.inside.stbdAftCabin.temperature": { n: 0, last: 313.15, age_s: 1500, q: "stale" },
   };
   const hist = Array.from({ length: 120 }, (_, i) => ({ ts: iso(now - i * 60000), paths: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, v.mean != null ? { ...v, mean: v.mean + Math.sin(i / 9) * 0.06 } : v])) }));
   const track = Array.from({ length: 30 }, (_, i) => ({ lat: 18.4118 + Math.sin(i) * 0.00002, lon: -64.6139 + Math.cos(i) * 0.00002 }));
