@@ -211,15 +211,31 @@ const RULES = {
 // Home base geofence (centre and radius in metres). Edit to the real marina position.
 const BASE = { name: "TMM Base", lat: 18.4118, lon: -64.6139, radius: 400 };
 // Stops visited this charter so far (mooring fields / anchorages), in the order visited. Add to this as the itinerary continues.
+// Each stop is either a circle {lat, lon, radius (m)} or a polygon {poly: [[lat,lon], ...]} tracing the bay headland to headland.
 const STOPS = [
   { name: "Saba Rock Mooring Field", lat: 18.4846, lon: -64.3765, radius: 300 },
   { name: "Anegada Anchorage", lat: 18.7270, lon: -64.3297, radius: 500 },
   { name: "Cane Garden Bay Mooring Field", lat: 18.4331, lon: -64.6683, radius: 400 },
-  { name: "White Bay, Jost Van Dyke", lat: 18.4461, lon: -64.7569, radius: 300 },
+  // Approximate, calibrated against a live fix (18.4421, -64.7626) anchored mid-bay; adjust if it clips the real headlands.
+  { name: "White Bay, Jost Van Dyke", poly: [
+    [18.4472, -64.7715], [18.4455, -64.7690], [18.4395, -64.7650],
+    [18.4390, -64.7600], [18.4460, -64.7555], [18.4480, -64.7565],
+  ] },
 ];
+// Point-in-polygon via ray casting (lat/lon treated as a flat plane, fine at bay scale).
+function inPolygon(lat, lon, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i], [yj, xj] = poly[j];
+    if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
 // Returns the first geofence (home base checked first, then stops) containing a position, or null.
 function currentZone(lat, lon) {
-  for (const z of [BASE, ...STOPS]) if (metres(lat, lon, z.lat, z.lon) <= z.radius) return z;
+  for (const z of [BASE, ...STOPS]) {
+    if (z.poly ? inPolygon(lat, lon, z.poly) : metres(lat, lon, z.lat, z.lon) <= z.radius) return z;
+  }
   return null;
 }
 // Maintenance list (hand-edited for now). due = ISO date or null; sample:true shows a "sample" tag.
@@ -528,8 +544,9 @@ function renderTrack(rows, pos) {
     $("tgFence").onclick = e => { showFence = !showFence; e.target.classList.toggle("on", showFence); if (fenceLayer) showFence ? fenceLayer.addTo(map) : fenceLayer.remove(); };
   }
   [trackLayer, marker, fenceLayer].forEach(l => l && l.remove()); trackLayer = marker = fenceLayer = null;
+  const fenceStyle = { color: "#c8a84b", weight: 2, dashArray: "6 5", fillColor: "#c8a84b", fillOpacity: 0.08 };
   fenceLayer = L.layerGroup([BASE, ...STOPS].map(z =>
-    L.circle([z.lat, z.lon], { radius: z.radius, color: "#c8a84b", weight: 2, dashArray: "6 5", fillColor: "#c8a84b", fillOpacity: 0.08 }).bindTooltip(z.name)
+    (z.poly ? L.polygon(z.poly, fenceStyle) : L.circle([z.lat, z.lon], { ...fenceStyle, radius: z.radius })).bindTooltip(z.name)
   ));
   if (showFence) fenceLayer.addTo(map);
   const pts = (rows || []).map(r => [r.lat, r.lon]).reverse();
