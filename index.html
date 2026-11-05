@@ -216,10 +216,14 @@ const STOPS = [
   { name: "Saba Rock Mooring Field", lat: 18.4846, lon: -64.3765, radius: 300 },
   { name: "Anegada Anchorage", lat: 18.7270, lon: -64.3297, radius: 500 },
   { name: "Cane Garden Bay Mooring Field", lat: 18.4331, lon: -64.6683, radius: 400 },
-  // Approximate, calibrated against a live fix (18.4421, -64.7626) anchored mid-bay; adjust if it clips the real headlands.
+  // Traced from whitebay.geojson (user-drawn boundary of the actual mooring/anchorage water).
   { name: "White Bay, Jost Van Dyke", poly: [
-    [18.4472, -64.7715], [18.4455, -64.7690], [18.4395, -64.7650],
-    [18.4390, -64.7600], [18.4460, -64.7555], [18.4480, -64.7565],
+    [18.438913, -64.758328], [18.439775, -64.758494], [18.440139, -64.758302],
+    [18.440783, -64.758072], [18.441293, -64.758405], [18.441791, -64.759045],
+    [18.442508, -64.760312], [18.442642, -64.761887], [18.442605, -64.76272],
+    [18.442727, -64.763322], [18.442787, -64.763949], [18.442836, -64.765972],
+    [18.442484, -64.766395], [18.441779, -64.766715], [18.440868, -64.767521],
+    [18.44071, -64.76797], [18.440455, -64.768136], [18.4389, -64.758341],
   ] },
 ];
 // Point-in-polygon via ray casting (lat/lon treated as a flat plane, fine at bay scale).
