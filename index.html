@@ -372,6 +372,42 @@ function spark(vals) {
   const pts = vals.map((v, i) => [(i / (vals.length - 1)) * w, h - 3 - ((v - mn) / span) * (h - 6)]);
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="var(--blue)" stroke-width="1.6" points="${pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}"/></svg>`;
 }
+// Band + mean line over a time series of {ts, mean, min, max}. Single series: no legend
+// needed (the title names it) per dataviz guidance; min/max band reads as the "low/high"
+// envelope, the mean line as the headline trend.
+function bandChart(rows) {
+  if (!rows || rows.length < 2) return "";
+  const w = 640, h = 90, pad = 4;
+  const means = rows.map(r => r.house_v_mean).filter(v => v != null);
+  const mins = rows.map(r => r.house_v_min).filter(v => v != null);
+  const maxs = rows.map(r => r.house_v_max).filter(v => v != null);
+  if (!means.length) return "";
+  const dmin = Math.min(...mins, ...means), dmax = Math.max(...maxs, ...means);
+  const span = Math.max(dmax - dmin, 0.4), lo = dmin - span * 0.08, hi = dmax + span * 0.08;
+  const n = rows.length;
+  const x = i => (i / (n - 1)) * (w - pad * 2) + pad;
+  const y = v => h - pad - ((v - lo) / (hi - lo)) * (h - pad * 2);
+  const top = rows.map((r, i) => [x(i), y(r.house_v_max ?? r.house_v_mean)]);
+  const bot = rows.map((r, i) => [x(i), y(r.house_v_min ?? r.house_v_mean)]).reverse();
+  const bandPts = [...top, ...bot].map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const meanPts = rows.map((r, i) => r.house_v_mean == null ? null : x(i).toFixed(1) + "," + y(r.house_v_mean).toFixed(1)).filter(Boolean).join(" ");
+  const t0 = new Date(rows[0].ts), t1 = new Date(rows[n - 1].ts);
+  const fmtT = t => t.toLocaleString([], { hour: "numeric", minute: "2-digit" });
+  return `<svg viewBox="0 0 ${w} ${h + 16}" preserveAspectRatio="none" style="width:100%;height:auto">
+    <polygon points="${bandPts}" fill="var(--blue)" opacity="0.14"/>
+    <polyline points="${meanPts}" fill="none" stroke="var(--blue)" stroke-width="2"/>
+    <text x="${pad}" y="${h + 14}" font-size="11" fill="var(--slate)">${esc(fmtT(t0))}</text>
+    <text x="${w - pad}" y="${h + 14}" font-size="11" fill="var(--slate)" text-anchor="end">${esc(fmtT(t1))}</text>
+  </svg>`;
+}
+// timeRemaining arrives in seconds (data contract: SI units).
+function fmtDuration(s) {
+  if (s == null) return null;
+  const h = s / 3600;
+  if (h >= 48) return (h / 24).toFixed(1) + " days";
+  if (h >= 1) return Math.floor(h) + "h " + Math.round((h % 1) * 60) + "m";
+  return Math.round(s / 60) + " min";
+}
 const BADGE = { live: ["LIVE TODAY", "b-live"], plan: ["PLANNED", "b-plan"], man: ["MANUAL ENTRY", "b-man"], mixp: ["LIVE + PLANNED", "b-plan"], mixm: ["LIVE + MANUAL", "b-live"] };
 function tile(name, st, stlab, badge, rowsHtml, foot, cls) {
   const [b, bc] = BADGE[badge];
@@ -486,11 +522,21 @@ function renderAll(d) {
   // Electrical (wide)
   const ids = [...new Set(Object.keys(paths).map(k => (k.match(/^electrical\.batteries\.(\d+)\.voltage$/) || [])[1]).filter(x => x != null))].sort((a, b) => a - b);
   const banks = ids.map(i => { const v = pv(paths, `electrical.batteries.${i}.voltage`); const series = d.hist.map(r => r.paths && r.paths[`electrical.batteries.${i}.voltage`]).filter(Boolean).map(p => p.mean ?? p.last).reverse();
-    return `<div class="bank"><div class="n">Bank ${i}</div><div class="vv">${fmt(v && v.last, 2)}<small>V</small>${qtag(v)}</div>${spark(series)}</div>`; }).join("");
+    return `<div class="bank"><div class="n">${i === "0" ? "House bank" : "Bank " + i}</div><div class="vv">${fmt(v && v.last, 2)}<small>V</small>${qtag(v)}</div>${spark(series)}</div>`; }).join("");
   const elSt = s.vmin == null ? "none" : s.vmin < RULES.batteryNotReadyV ? "alert" : s.vmin < RULES.batteryReadyV ? "watch" : "ok";
+  const houseSoc = pv(paths, "electrical.batteries.0.capacity.stateOfCharge");
+  const houseTR = pv(paths, "electrical.batteries.0.capacity.timeRemaining");
+  const sagEvt = (d.evts || []).find(e => e.kind === "threshold" && e.state === "breach" && /^electrical\.batteries\.\d+\.voltage$/.test(e.path || ""));
+  const band = bandChart(d.battHist);
   T.push(tile("Electrical and power", elSt, elSt === "none" ? "No data yet" : elSt === "ok" ? "OK" : elSt === "alert" ? "Alert" : "Watch", "live",
-    (banks ? `<div class="banks">${banks}</div>` : row("Battery banks", NA("No data yet"))) + row("Bank 0 current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) + row("Banks 2, 5, 6 current and charge level", NA("Not available yet")) + row("Shore power", NA("Not available yet")),
-    "Bank 0 reports current (small values are normal on a full bank). Banks 2, 5 and 6 send voltage only. Bank names follow once instances are mapped to house and start batteries.", "w2"));
+    (banks ? `<div class="banks">${banks}</div>` : row("Battery banks", NA("No data yet"))) +
+    row("House bank charge", houseSoc && houseSoc.last != null ? Math.round(houseSoc.last * 100) + " %" + qtag(houseSoc) : NA("Not available yet")) +
+    row("House bank time remaining", houseTR && houseTR.last != null ? fmtDuration(houseTR.last) + qtag(houseTR) : NA("Not available yet")) +
+    row("House bank current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) +
+    row("Shore power", NA("Not available yet")) +
+    (band ? `<div class="r" style="display:block;margin-top:6px"><div class="k" style="margin-bottom:4px">House battery, last 24 hours</div>${band}<div class="na" style="font-size:11px">Line is the mean. Band is the minute-by-minute low and high.</div></div>` : "") +
+    (sagEvt ? `<div class="r" style="display:block;margin-top:6px"><span class="tag warn">Watch</span> House bank dropped below 12.2&nbsp;V at ${esc(new Date(sagEvt.ts).toLocaleString([], { hour: "numeric", minute: "2-digit" }))}.</div>` : ""),
+    "House bank = instance 0 (Scheiber, prioritized over the port engine's start battery since 2026-11-06). Banks 2, 5 and 6 send voltage only; still unmapped to physical batteries.", "w2"));
   // Security
   T.push(tile("Security", s.openHatches.length ? "watch" : hs ? "ok" : "none", s.openHatches.length ? "Watch" : hs ? "OK" : "No data yet", "live",
     row("Hatch and door sensors", hs ? `${hs} reporting, ${s.openHatches.length} open` : NA("No sensor events yet")) +
@@ -572,7 +618,7 @@ function demoData() {
   const paths = {
     "electrical.batteries.0.voltage": s(13.7), "electrical.batteries.2.voltage": s(13.77),
     "electrical.batteries.5.voltage": s(13.8), "electrical.batteries.6.voltage": s(13.7),
-    "electrical.batteries.0.capacity.stateOfCharge": { n: 60, last: 1, q: "unverified" },
+    "electrical.batteries.0.capacity.stateOfCharge": s(0.98), "electrical.batteries.0.capacity.timeRemaining": s(559200),
     "tanks.freshWater.0.currentLevel": s(0.66), "tanks.fuel.0.currentLevel": s(0.89),
     "tanks.freshWater.1.currentLevel": { ...s(1), q: "unverified" }, "tanks.fuel.1.currentLevel": { ...s(1), q: "unverified" },
     "propulsion.port.revolutions": s(13.67), "propulsion.port.runTime": s(3268260), "propulsion.port.temperature": s(355.15),
@@ -586,22 +632,36 @@ function demoData() {
   };
   const hist = Array.from({ length: 120 }, (_, i) => ({ ts: iso(now - i * 60000), paths: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, v.mean != null ? { ...v, mean: v.mean + Math.sin(i / 9) * 0.06 } : v])) }));
   const track = Array.from({ length: 30 }, (_, i) => ({ lat: 18.4118 + Math.sin(i) * 0.00002, lon: -64.6139 + Math.cos(i) * 0.00002 }));
+  // 24h of house-bank voltage: a slow charge/discharge cycle plus a brief engine-start sag.
+  const battHist = Array.from({ length: 24 * 60 }, (_, i) => {
+    const minsAgo = 24 * 60 - 1 - i, t = now - minsAgo * 60000;
+    const cycle = 13.4 + Math.sin(minsAgo / 180) * 0.35;
+    const sag = minsAgo > 500 && minsAgo < 508 ? -1.3 : 0;   // one dip, ~8h ago
+    const mean = cycle + sag;
+    return { ts: iso(t), house_v_mean: +mean.toFixed(2), house_v_min: +(mean - 0.05).toFixed(2), house_v_max: +(mean + 0.05).toFixed(2) };
+  });
   return {
     status: { ts: iso(now - 40000), payload: { online: true, agent: "0.1.0", paths: 31, dropped: 0, uptime_s: 8640, queue: 0, cpu_temp_c: 74, mem_avail_mb: 5888, swap_used_mb: 0, skew_s: 0.6 } },
     pos: { ts: iso(now - 60000), lat: 18.4118126, lon: -64.6139288, sog: 0.02, hdg: 0.74 },
-    latest: { ts: iso(now - 60000), paths }, hist, track,
-    evts: [{ ts: iso(now - 3600000), path: "environment.inside.portFwdCabin.contact", kind: "state", state: "open" }],
+    latest: { ts: iso(now - 60000), paths }, hist, track, battHist,
+    evts: [{ ts: iso(now - 3600000), path: "environment.inside.portFwdCabin.contact", kind: "state", state: "open" },
+      { ts: iso(now - 500 * 60000), path: "electrical.batteries.0.voltage", kind: "threshold", state: "breach", message: "low_battery_voltage" }],
     engEvts: [{ ts: iso(now - 120000), path: "notifications.propulsion.port.checkEngine", state: "alarm" },
       { ts: iso(now - 300000), path: "notifications.propulsion.port.preheatIndicator", state: "alarm" }],
   };
 }
+
+// House-battery 24h band-chart data refreshes far slower than the 30s tile tick: a day of
+// per-minute rows is cheap once, not worth re-fetching every tick. Cached across calls.
+const BATT_HIST_MS = 5 * 60 * 1000;
+let battHist = [], battHistAt = 0;
 
 async function load() {
   let d;
   if (DEMO) d = demoData();
   else {
     const since = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
-    const [st, pos, lat, hist, trk, evt, eng] = await Promise.all([
+    const fetches = [
       sb.from("vessel_status").select("ts,payload").eq("vessel_id", vessel.id).maybeSingle(),
       sb.from("vessel_last_pos").select("ts,lat,lon,sog,cog,hdg").eq("vessel_id", vessel.id).maybeSingle(),
       sb.from("vessel_latest").select("ts,paths").eq("vessel_id", vessel.id).maybeSingle(),
@@ -609,9 +669,22 @@ async function load() {
       sb.from("vessel_pos").select("lat,lon").eq("vessel_id", vessel.id).gte("ts", since).order("ts", { ascending: false }).limit(180),
       sb.from("vessel_event").select("ts,path,kind,state,message").eq("vessel_id", vessel.id).order("ts", { ascending: false }).limit(12),
       sb.from("vessel_event").select("ts,path,state").eq("vessel_id", vessel.id).like("path", "notifications.propulsion.%").gte("ts", ENGINE_EVENTS_SINCE).order("ts", { ascending: false }).limit(200),
-    ]);
+    ];
+    const now = Date.now();
+    const needBattHist = now - battHistAt >= BATT_HIST_MS;
+    if (needBattHist) {
+      const since24h = new Date(now - 24 * 3600 * 1000).toISOString();
+      fetches.push(sb.from("vessel_battery_minute").select("ts,house_v_mean,house_v_min,house_v_max")
+        .eq("vessel_id", vessel.id).gte("ts", since24h).order("ts", { ascending: true }).limit(1440));
+    }
+    const [st, pos, lat, hist, trk, evt, eng, battRes] = await Promise.all(fetches);
     for (const r of [st, pos, lat, hist, trk, evt, eng]) if (r.error) throw r.error;
-    d = { status: st.data, pos: pos.data, latest: lat.data, hist: hist.data || [], track: trk.data || [], evts: evt.data || [], engEvts: eng.data || [] };
+    if (needBattHist) {
+      if (battRes.error) throw battRes.error;
+      battHist = battRes.data || []; battHistAt = now;
+    }
+    d = { status: st.data, pos: pos.data, latest: lat.data, hist: hist.data || [], track: trk.data || [],
+          evts: evt.data || [], engEvts: eng.data || [], battHist };
   }
   renderAll(d);
 }
