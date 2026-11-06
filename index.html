@@ -699,11 +699,11 @@ function renderAll(d) {
   const cab = Object.entries(paths || {})
     .filter(([k, v]) => /^environment\.inside\.[^.]+\.temperature$/.test(k) && v && v.last != null && (v.q !== "stale" || (v.age_s || 0) <= 7200))
     .sort((a, b) => b[1].last - a[1].last);
-  const cabTxt = cab.length ? fmt(cab[0][1].last - 273.15, 0) + " °C · " + esc(pretty(cab[0][0].split(".")[2])) +
-    (cab.length > 1 ? ` (warmest of ${cab.length})` : "") : null;
+  const cabRows = cab.map(([k, v], i) => row((i === 0 ? "Cabin temp (warmest)" : "Cabin temp") + " · " + esc(pretty(k.split(".")[2])),
+    fmt(v.last - 273.15, 0) + " °C" + qtag(v))).join("");
   T.push(tile("Environment", dp || wt || wsp || cab.length ? "ok" : "none", dp || wt || wsp || cab.length ? "OK" : "No data yet", "live",
     row("Depth below keel", dp ? fmt(dp.last, 1) + " m" + qtag(dp) : NA("No data")) + row("Water temperature", wt ? fmt(wt.last - 273.15, 1) + " °C" + qtag(wt) : NA("No data")) +
-    row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + row("Cabin temperature", cabTxt ? cabTxt : NA("No sensor yet"))));
+    row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + (cabRows || row("Cabin temperature", NA("No sensor yet")))));
   // Position and geofence
   const moved = d.track && d.track.some(r => Math.abs(r.lat - d.track[0].lat) > 0.0004 || Math.abs(r.lon - d.track[0].lon) > 0.0004);
   const inside = pos ? metres(pos.lat, pos.lon, BASE.lat, BASE.lon) <= BASE.radius : null;
