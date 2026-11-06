@@ -201,6 +201,7 @@ const RULES = {
   fuelTarget: 0.80, waterTarget: 0.80,          // handover targets (fraction)
   pointsPerPercent: 0.6, maxPointsPerTank: 15,   // score points lost per percentage point below target
   batteryReadyV: 12.6, batteryNotReadyV: 12.4,   // house battery thresholds (volts)
+  socWatchPct: 50, socAlertPct: 20,              // house bank charge thresholds for the SoC gauge
   batteryCheckPoints: 5, batteryFailPoints: 15,
   silentMinutes: 15,                             // gateway silent this long: No data
   hatchOpenPoints: 5,
@@ -364,6 +365,21 @@ function gauge(val) {
     <circle cx="95" cy="95" r="${r}" fill="none" stroke="var(--brass)" stroke-width="14" stroke-dasharray="${on.toFixed(1)} ${c.toFixed(1)}" stroke-linecap="round"/></g>
     <text x="95" y="104" text-anchor="middle" font-size="50" font-weight="700" fill="var(--ink)" font-family="Inter,system-ui,sans-serif">${val == null ? "n/a" : val}</text>
     <text x="95" y="128" text-anchor="middle" font-size="12" fill="var(--slate)" font-family="Inter,system-ui,sans-serif">out of 100</text></svg>`;
+}
+// Battery-shaped SoC gauge (the universally recognizable form for "charge level" --
+// phone/laptop battery icons). Fill color follows the status palette, not an arbitrary hue;
+// the % is a direct label next to the mark rather than printed again inside it.
+function socGauge(pct) {
+  if (pct == null) return "";
+  const w = 72, h = 32, bodyW = 62, nubW = 5, strokeW = 2, pad = 3;
+  const level = pct >= RULES.socWatchPct ? "ok" : pct >= RULES.socAlertPct ? "watch" : "alert";
+  const innerW = bodyW - pad * 2 - strokeW, innerH = h - pad * 2 - strokeW;
+  const fillW = Math.max(innerW * Math.max(0, Math.min(100, pct)) / 100, pct > 0 ? 3 : 0);
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="House bank charge ${Math.round(pct)}%">
+    <rect x="${strokeW / 2}" y="${strokeW / 2}" width="${bodyW - strokeW}" height="${h - strokeW}" rx="5" fill="none" stroke="var(--rule)" stroke-width="${strokeW}"/>
+    <rect x="${bodyW}" y="${h / 2 - 6}" width="${nubW}" height="12" rx="2" fill="var(--rule)"/>
+    <rect x="${pad + strokeW / 2}" y="${pad + strokeW / 2}" width="${fillW.toFixed(1)}" height="${innerH}" rx="3" fill="var(--${level})"/>
+  </svg>`;
 }
 function spark(vals) {
   if (vals.length < 2) return "";
@@ -530,7 +546,9 @@ function renderAll(d) {
   const band = bandChart(d.battHist);
   T.push(tile("Electrical and power", elSt, elSt === "none" ? "No data yet" : elSt === "ok" ? "OK" : elSt === "alert" ? "Alert" : "Watch", "live",
     (banks ? `<div class="banks">${banks}</div>` : row("Battery banks", NA("No data yet"))) +
-    row("House bank charge", houseSoc && houseSoc.last != null ? Math.round(houseSoc.last * 100) + " %" + qtag(houseSoc) : NA("Not available yet")) +
+    row("House bank charge", (() => { if (!houseSoc || houseSoc.last == null) return NA("Not available yet");
+      const pct = houseSoc.last * 100;
+      return `<span style="display:inline-flex;align-items:center;gap:8px">${socGauge(pct)}<b>${Math.round(pct)}%</b></span>${qtag(houseSoc)}`; })()) +
     row("House bank time remaining", houseTR && houseTR.last != null ? fmtDuration(houseTR.last) + qtag(houseTR) : NA("Not available yet")) +
     row("House bank current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) +
     row("Shore power", NA("Not available yet")) +
