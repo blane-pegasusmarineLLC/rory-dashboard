@@ -211,7 +211,11 @@ const RULES = {
   safetyCap: 50                                  // a safety-critical alert caps the score
 };
 // Home base geofence (centre and radius in metres). Edit to the real marina position.
-const BASE = { name: "TMM Base", lat: 18.4118, lon: -64.6139, radius: 400 };
+// shorePower: true marks a zone where a shore connection physically exists, so "AC input
+// present" there is ambiguous (shore or generator). Every other zone (and no zone at all --
+// mooring fields/anchorages have no shore pedestal) defaults to false: AC input there can
+// only mean the generator.
+const BASE = { name: "TMM Base", lat: 18.4118, lon: -64.6139, radius: 400, shorePower: true };
 // Stops visited this charter so far (mooring fields / anchorages), in the order visited. Add to this as the itinerary continues.
 // Each stop is either a circle {lat, lon, radius (m)} or a polygon {poly: [[lat,lon], ...]} tracing the bay headland to headland.
 const STOPS = [
@@ -226,6 +230,21 @@ const STOPS = [
     [18.442727, -64.763322], [18.442787, -64.763949], [18.442836, -64.765972],
     [18.442484, -64.766395], [18.441779, -64.766715], [18.440868, -64.767521],
     [18.44071, -64.76797], [18.440455, -64.768136], [18.4389, -64.758341],
+  ] },
+  // Traced from "Bight - Norman Island.geojson" (user-drawn boundary, 2026-11-06).
+  { name: "The Bight, Norman Island", poly: [
+    [18.317142, -64.624158], [18.315796, -64.622372], [18.314929, -64.621692],
+    [18.31386, -64.621129], [18.313583, -64.619983], [18.313104, -64.61907],
+    [18.313159, -64.618255], [18.31351, -64.61742], [18.31421, -64.616565],
+    [18.314708, -64.61606], [18.315058, -64.61608], [18.316017, -64.615497],
+    [18.316275, -64.614914], [18.316404, -64.613963], [18.317492, -64.613497],
+    [18.317621, -64.613283], [18.318469, -64.61338], [18.318764, -64.61373],
+    [18.318856, -64.614099], [18.318783, -64.615167], [18.318985, -64.615924],
+    [18.319391, -64.616662], [18.31952, -64.617148], [18.319428, -64.617556],
+    [18.319981, -64.617944], [18.320165, -64.618352], [18.320165, -64.618643],
+    [18.320055, -64.618954], [18.319944, -64.619187], [18.319778, -64.61942],
+    [18.319833, -64.619808], [18.320221, -64.620041], [18.320368, -64.620274],
+    [18.320811, -64.620333], [18.317105, -64.624178],
   ] },
 ];
 // Point-in-polygon via ray casting (lat/lon treated as a flat plane, fine at bay scale).
@@ -425,6 +444,20 @@ function bandChart(rows, floor) {
     <text x="${w - pad}" y="${h + 14}" font-size="11" fill="var(--slate)" text-anchor="end">${esc(fmtT(t1))}</text>
   </svg>`;
 }
+// Infers what's charging the house bank, by elimination -- no source is directly
+// instrumented (solar isn't on the bus at all; AC input doesn't say shore vs. generator).
+// AC input present: a shore connection only exists at a zone marked shorePower -- anywhere
+// else (mooring fields, anchorages, no zone at all) has no shore pedestal, so AC input there
+// can only be the generator. AC input requires a >90V sanity floor so a stray near-zero
+// glitch reading doesn't read as "present."
+function chargeSource(paths, zone, anyEngineRunning) {
+  const ac = pv(paths, "electrical.ac.input.voltage");
+  if (ac && ac.last != null && ac.last > 90) return (zone && zone.shorePower) ? "Shore power or generator" : "Generator";
+  if (anyEngineRunning) return "Engine alternator";
+  const current = pv(paths, "electrical.batteries.0.current");
+  if (current && current.last != null && current.last > 0.5) return "Solar";
+  return null;
+}
 // timeRemaining arrives in seconds (data contract: SI units).
 function fmtDuration(s) {
   if (s == null) return null;
@@ -467,6 +500,7 @@ const ok = (c, w) => c === "alert" ? ["alert", "Alert"] : c === "watch" ? ["watc
 
 function renderAll(d) {
   const s = derive(d), paths = s.paths, pos = d.pos;
+  const zone = pos ? currentZone(pos.lat, pos.lon) : null;
   // header + status
   $("statusChip").className = "chip statuschip " + s.status; $("statusChip").textContent = s.label;
   // connection pill
@@ -490,7 +524,6 @@ function renderAll(d) {
   if (pos) {
     const sog = pos.sog != null ? pos.sog * MS2KN : null;
     const dist = metres(pos.lat, pos.lon, BASE.lat, BASE.lon);
-    const zone = currentZone(pos.lat, pos.lon);
     $("mapSub").textContent = `${dm(pos.lat, "N", "S")}, ${dm(pos.lon, "E", "W")}`;
     $("strip").innerHTML = [
       ["Status", sog != null && sog < 0.5 ? "At rest" : "Underway"], ["Speed", fmt(sog, 1) + " kn"],
@@ -560,10 +593,10 @@ function renderAll(d) {
       return `<span style="display:inline-flex;align-items:center;gap:8px">${socGauge(pct)}<b>${Math.round(pct)}%</b></span>${qtag(houseSoc)}`; })()) +
     row("House bank time remaining", houseTR && houseTR.last != null ? fmtDuration(houseTR.last) + qtag(houseTR) : NA("Not available yet")) +
     row("House bank current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) +
-    row("Shore power", NA("Not available yet")) +
+    row("Charging from", chargeSource(paths, zone, s.engines.some(e => e.running)) || NA("Not charging / unclear")) +
     (band ? `<div class="r" style="display:block;margin-top:6px"><div class="k" style="margin-bottom:4px">House battery, last 24 hours</div>${band}<div class="na" style="font-size:11px">Line is the mean. Band is the minute-by-minute low and high. Dashed line is the low-voltage threshold.</div></div>` : "") +
     (sagEvt ? `<div class="r" style="display:block;margin-top:6px"><span class="tag warn">Watch</span> House bank dropped below 12.2&nbsp;V at ${esc(new Date(sagEvt.ts).toLocaleString([], { hour: "numeric", minute: "2-digit" }))}.</div>` : ""),
-    "House bank = instance 0 (Scheiber, prioritized over the port engine's start battery since 2026-11-06). Banks 2, 5 and 6 send voltage only; still unmapped to physical batteries.", "w2"));
+    "House bank = instance 0 (Scheiber, prioritized over the port engine's start battery since 2026-11-06). Banks 2, 5 and 6 send voltage only; still unmapped to physical batteries. \"Charging from\" is inferred by elimination (no source is directly instrumented), not measured.", "w2"));
   // Security
   T.push(tile("Security", s.openHatches.length ? "watch" : hs ? "ok" : "none", s.openHatches.length ? "Watch" : hs ? "OK" : "No data yet", "live",
     row("Hatch and door sensors", hs ? `${hs} reporting, ${s.openHatches.length} open` : NA("No sensor events yet")) +
