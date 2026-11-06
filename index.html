@@ -202,6 +202,7 @@ const RULES = {
   pointsPerPercent: 0.6, maxPointsPerTank: 15,   // score points lost per percentage point below target
   batteryReadyV: 12.6, batteryNotReadyV: 12.4,   // house battery thresholds (volts)
   socWatchPct: 50, socAlertPct: 20,              // house bank charge thresholds for the SoC gauge
+  lowVoltageFloor: 12.2,                         // must match rory-uplink's low_battery_voltage threshold
   batteryCheckPoints: 5, batteryFailPoints: 15,
   silentMinutes: 15,                             // gateway silent this long: No data
   hatchOpenPoints: 5,
@@ -391,14 +392,17 @@ function spark(vals) {
 // Band + mean line over a time series of {ts, mean, min, max}. Single series: no legend
 // needed (the title names it) per dataviz guidance; min/max band reads as the "low/high"
 // envelope, the mean line as the headline trend.
-function bandChart(rows) {
+function bandChart(rows, floor) {
   if (!rows || rows.length < 2) return "";
   const w = 640, h = 90, pad = 4;
   const means = rows.map(r => r.house_v_mean).filter(v => v != null);
   const mins = rows.map(r => r.house_v_min).filter(v => v != null);
   const maxs = rows.map(r => r.house_v_max).filter(v => v != null);
   if (!means.length) return "";
-  const dmin = Math.min(...mins, ...means), dmax = Math.max(...maxs, ...means);
+  // The floor is always in-domain, even when nowhere near it: a constant reference for
+  // "how much margin above the low-voltage threshold," not something that only appears
+  // once already crossed (anti-pattern: a reference line that pops in/out of the chart).
+  const dmin = Math.min(...mins, ...means, floor), dmax = Math.max(...maxs, ...means, floor);
   const span = Math.max(dmax - dmin, 0.4), lo = dmin - span * 0.08, hi = dmax + span * 0.08;
   const n = rows.length;
   const x = i => (i / (n - 1)) * (w - pad * 2) + pad;
@@ -409,7 +413,12 @@ function bandChart(rows) {
   const meanPts = rows.map((r, i) => r.house_v_mean == null ? null : x(i).toFixed(1) + "," + y(r.house_v_mean).toFixed(1)).filter(Boolean).join(" ");
   const t0 = new Date(rows[0].ts), t1 = new Date(rows[n - 1].ts);
   const fmtT = t => t.toLocaleString([], { hour: "numeric", minute: "2-digit" });
+  const fy = y(floor);
+  // Label above the line when there's room, else below -- never lets it collide with the axis text.
+  const floorLabelY = fy > 12 ? fy - 4 : fy + 12;
   return `<svg viewBox="0 0 ${w} ${h + 16}" preserveAspectRatio="none" style="width:100%;height:auto">
+    <line x1="${pad}" y1="${fy.toFixed(1)}" x2="${w - pad}" y2="${fy.toFixed(1)}" stroke="var(--alert)" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
+    <text x="${pad}" y="${floorLabelY.toFixed(1)}" font-size="10" fill="var(--alertfg)">${fmt(floor, 1)} V floor</text>
     <polygon points="${bandPts}" fill="var(--blue)" opacity="0.14"/>
     <polyline points="${meanPts}" fill="none" stroke="var(--blue)" stroke-width="2"/>
     <text x="${pad}" y="${h + 14}" font-size="11" fill="var(--slate)">${esc(fmtT(t0))}</text>
@@ -543,7 +552,7 @@ function renderAll(d) {
   const houseSoc = pv(paths, "electrical.batteries.0.capacity.stateOfCharge");
   const houseTR = pv(paths, "electrical.batteries.0.capacity.timeRemaining");
   const sagEvt = (d.evts || []).find(e => e.kind === "threshold" && e.state === "breach" && /^electrical\.batteries\.\d+\.voltage$/.test(e.path || ""));
-  const band = bandChart(d.battHist);
+  const band = bandChart(d.battHist, RULES.lowVoltageFloor);
   T.push(tile("Electrical and power", elSt, elSt === "none" ? "No data yet" : elSt === "ok" ? "OK" : elSt === "alert" ? "Alert" : "Watch", "live",
     (banks ? `<div class="banks">${banks}</div>` : row("Battery banks", NA("No data yet"))) +
     row("House bank charge", (() => { if (!houseSoc || houseSoc.last == null) return NA("Not available yet");
@@ -552,7 +561,7 @@ function renderAll(d) {
     row("House bank time remaining", houseTR && houseTR.last != null ? fmtDuration(houseTR.last) + qtag(houseTR) : NA("Not available yet")) +
     row("House bank current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) +
     row("Shore power", NA("Not available yet")) +
-    (band ? `<div class="r" style="display:block;margin-top:6px"><div class="k" style="margin-bottom:4px">House battery, last 24 hours</div>${band}<div class="na" style="font-size:11px">Line is the mean. Band is the minute-by-minute low and high.</div></div>` : "") +
+    (band ? `<div class="r" style="display:block;margin-top:6px"><div class="k" style="margin-bottom:4px">House battery, last 24 hours</div>${band}<div class="na" style="font-size:11px">Line is the mean. Band is the minute-by-minute low and high. Dashed line is the low-voltage threshold.</div></div>` : "") +
     (sagEvt ? `<div class="r" style="display:block;margin-top:6px"><span class="tag warn">Watch</span> House bank dropped below 12.2&nbsp;V at ${esc(new Date(sagEvt.ts).toLocaleString([], { hour: "numeric", minute: "2-digit" }))}.</div>` : ""),
     "House bank = instance 0 (Scheiber, prioritized over the port engine's start battery since 2026-11-06). Banks 2, 5 and 6 send voltage only; still unmapped to physical batteries.", "w2"));
   // Security
