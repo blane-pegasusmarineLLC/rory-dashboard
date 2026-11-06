@@ -219,7 +219,50 @@ const BASE = { name: "TMM Base", lat: 18.4118, lon: -64.6139, radius: 400, shore
 // Stops visited this charter so far (mooring fields / anchorages), in the order visited. Add to this as the itinerary continues.
 // Each stop is either a circle {lat, lon, radius (m)} or a polygon {poly: [[lat,lon], ...]} tracing the bay headland to headland.
 const STOPS = [
-  { name: "Saba Rock Mooring Field", lat: 18.4846, lon: -64.3765, radius: 300 },
+  // Traced from "Saba Rock - Moorings.geojson" (2026-11-06) -- replaces an earlier guessed
+  // circle that was centered about 2km off the real mooring field.
+  { name: "Saba Rock Mooring Field", poly: [
+    [18.502033, -64.358476], [18.502021, -64.361504], [18.503765, -64.361408],
+    [18.503935, -64.359654], [18.503559, -64.358356], [18.503206, -64.358164],
+    [18.502956, -64.358152], [18.502055, -64.358476],
+  ] },
+  // Traced from "Bitter End Yacht Club - Moorings.geojson" (2026-11-06).
+  { name: "Bitter End Yacht Club Mooring Field", poly: [
+    [18.501586, -64.359148], [18.500401, -64.363425], [18.495228, -64.362608],
+    [18.495479, -64.358619], [18.495821, -64.358018], [18.496003, -64.357514],
+    [18.496504, -64.357346], [18.497484, -64.357586], [18.498122, -64.357682],
+    [18.499057, -64.357586], [18.499877, -64.357898], [18.500401, -64.358163],
+    [18.501609, -64.359124],
+  ] },
+  // Traced from "Bitter End Yacht Club - Dock.geojson" (2026-11-06). Nested inside the
+  // mooring field above -- smallest-area match wins, so this takes precedence over it.
+  { name: "Bitter End Yacht Club Dock", shorePower: true, poly: [
+    [18.499054, -64.357809], [18.49883, -64.3585], [18.498049, -64.358324],
+    [18.498112, -64.358051], [18.498278, -64.358082], [18.498353, -64.35767],
+    [18.499054, -64.357815],
+  ] },
+  // Traced from "Leverick Bay Moorings.geojson" (2026-11-06).
+  { name: "Leverick Bay Mooring Field", poly: [
+    [18.497351, -64.38954], [18.498818, -64.390551], [18.500313, -64.390551],
+    [18.500341, -64.385509], [18.497901, -64.385643], [18.497562, -64.385688],
+    [18.497548, -64.385911], [18.497774, -64.386744], [18.497774, -64.386952],
+    [18.497506, -64.387279], [18.497506, -64.387978], [18.497591, -64.388201],
+    [18.497605, -64.388409], [18.497407, -64.389302], [18.497323, -64.389525],
+  ] },
+  // Traced from "Leverick Bay - Dockage.geojson" (2026-11-06). Nested inside the mooring
+  // field above.
+  { name: "Leverick Bay Dockage", shorePower: true, poly: [
+    [18.497591, -64.385911], [18.49855, -64.386759], [18.499043, -64.386],
+    [18.498239, -64.385584], [18.497887, -64.385614], [18.497591, -64.385658],
+    [18.497591, -64.385941],
+  ] },
+  // Traced from "Cooper Island Moorings.geojson" (2026-11-06).
+  { name: "Cooper Island Moorings", poly: [
+    [18.388563, -64.513914], [18.388392, -64.513536], [18.388016, -64.513104],
+    [18.386001, -64.512726], [18.384003, -64.51305], [18.3839, -64.513338],
+    [18.383849, -64.513392], [18.383337, -64.5135], [18.382158, -64.513878],
+    [18.38086, -64.5153], [18.388563, -64.513932],
+  ] },
   { name: "Anegada Anchorage", lat: 18.7270, lon: -64.3297, radius: 500 },
   { name: "Cane Garden Bay Mooring Field", lat: 18.4331, lon: -64.6683, radius: 400 },
   // Traced from whitebay.geojson (user-drawn boundary of the actual mooring/anchorage water).
