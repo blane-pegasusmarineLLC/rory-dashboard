@@ -670,6 +670,11 @@ function renderTrack(rows, pos) {
   if (!map) {
     map = L.map("map", { zoomControl: false, attributionControl: true }); L.control.zoom({ position: "bottomright" }).addTo(map);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
+    // Nautical marks overlay (buoys, lights, beacons) on top of the OSM base -- same approach
+    // Freeboard-SK uses. OpenSeaMap has no full base map of its own; "seamark" is a transparent
+    // overlay meant to sit over OSM tiles, not replace them.
+    L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
+      { maxZoom: 18, attribution: "Seamarks © OpenSeaMap" }).addTo(map);
     map.setView([BASE.lat, BASE.lon], 15);
     $("tgTrack").onclick = e => { showTrack = !showTrack; e.target.classList.toggle("on", showTrack); if (trackLayer) showTrack ? trackLayer.addTo(map) : trackLayer.remove(); };
     $("tgFence").onclick = e => { showFence = !showFence; e.target.classList.toggle("on", showFence); if (fenceLayer) showFence ? fenceLayer.addTo(map) : fenceLayer.remove(); };
