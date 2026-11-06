@@ -257,11 +257,32 @@ function inPolygon(lat, lon, poly) {
   return inside;
 }
 // Returns the first geofence (home base checked first, then stops) containing a position, or null.
-function currentZone(lat, lon) {
-  for (const z of [BASE, ...STOPS]) {
-    if (z.poly ? inPolygon(lat, lon, z.poly) : metres(lat, lon, z.lat, z.lon) <= z.radius) return z;
+// Shoelace formula, flat-plane -- not a real-world area, but consistent enough to compare
+// zone sizes against each other, which is all zoneArea() needs it for.
+function polygonArea(poly) {
+  let a = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    a += poly[j][1] * poly[i][0] - poly[i][1] * poly[j][0];
   }
-  return null;
+  return Math.abs(a) / 2;
+}
+function zoneArea(z) {
+  return z.poly ? polygonArea(z.poly) : Math.PI * (z.radius / 111320) ** 2;  // metres -> degrees, roughly
+}
+// A marina can sit entirely inside a bigger bay/anchorage polygon (e.g. a marina zone nested
+// inside a larger harbor zone) -- when a position matches more than one zone, the smallest
+// (most specific) one wins, not whichever happens to come first in the list. This makes zone
+// precedence a property of the zones' actual shapes, not something that silently depends on
+// the order they were added in.
+function currentZone(lat, lon) {
+  let best = null, bestArea = Infinity;
+  for (const z of [BASE, ...STOPS]) {
+    const inside = z.poly ? inPolygon(lat, lon, z.poly) : metres(lat, lon, z.lat, z.lon) <= z.radius;
+    if (!inside) continue;
+    const area = zoneArea(z);
+    if (area < bestArea) { best = z; bestArea = area; }
+  }
+  return best;
 }
 // Maintenance list (hand-edited for now). due = ISO date or null; sample:true shows a "sample" tag.
 const MAINT = [
