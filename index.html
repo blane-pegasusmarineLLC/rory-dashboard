@@ -225,7 +225,15 @@ const RULES = {
 // present" there is ambiguous (shore or generator). Every other zone (and no zone at all --
 // mooring fields/anchorages have no shore pedestal) defaults to false: AC input there can
 // only mean the generator.
-const BASE = { name: "TMM Base", lat: 18.4118, lon: -64.6139, radius: 400, shorePower: true };
+// Traced from "TMM Base.geojson" (2026-11-16); replaces a 400 m circle that also swallowed the
+// Fort Burt fuel dock next door. lat/lon is the polygon's centre, used for distance-to-base
+// and the default map view; the polygon decides inside/outside.
+const BASE = { name: "TMM Base", lat: 18.4123, lon: -64.6138, shorePower: true, poly: [
+  [18.412815, -64.61388], [18.41228, -64.614279], [18.411929, -64.614501],
+  [18.411611, -64.613766], [18.411935, -64.613288], [18.412383, -64.613573],
+  [18.412523, -64.613522], [18.412491, -64.613396], [18.41281, -64.61388],
+  [18.412815, -64.61388],
+] };
 // Stops visited this charter so far (mooring fields / anchorages), in the order visited. Add to this as the itinerary continues.
 // Each stop is either a circle {lat, lon, radius (m)} or a polygon {poly: [[lat,lon], ...]} tracing the bay headland to headland.
 const STOPS = [
@@ -323,6 +331,52 @@ const STOPS = [
     [18.440054, -64.727338], [18.439884, -64.727419], [18.439691, -64.727378],
     [18.439552, -64.727289], [18.439135, -64.726857], [18.437767, -64.725188],
     [18.437381, -64.724773], [18.437219, -64.724496], [18.437095, -64.730261],
+  ] },
+  // Traced from "Fort Burt Fuel Dock.geojson" (2026-11-16). Fuel only, no shore power.
+  { name: "Fort Burt Fuel Dock", poly: [
+    [18.413766, -64.614188], [18.41356, -64.613994], [18.413755, -64.613761],
+    [18.413966, -64.613977], [18.413776, -64.614188], [18.413766, -64.614188],
+  ] },
+  // Traced from "CSY Fuel Dock.geojson" (2026-11-16). Fuel only, no shore power.
+  { name: "CSY Fuel Dock", poly: [
+    [18.422706, -64.604342], [18.422475, -64.604991], [18.421918, -64.604786],
+    [18.422155, -64.604124], [18.422706, -64.604342],
+  ] },
+  // Traced from "Great Harbor - Peter Island.geojson" (2026-11-16).
+  { name: "Great Harbor, Peter Island", poly: [
+    [18.358074, -64.592184], [18.357646, -64.591754], [18.35716, -64.59157],
+    [18.356712, -64.591283], [18.356304, -64.590832], [18.355895, -64.590053],
+    [18.355701, -64.589725], [18.355331, -64.589705], [18.354826, -64.589705],
+    [18.354573, -64.589561], [18.354106, -64.588721], [18.354223, -64.588127],
+    [18.3543, -64.587881], [18.354203, -64.587573], [18.3543, -64.587102],
+    [18.354553, -64.587143], [18.354553, -64.586938], [18.354359, -64.586672],
+    [18.354495, -64.585831], [18.354456, -64.585524], [18.354067, -64.584745],
+    [18.354067, -64.584192], [18.354184, -64.583782], [18.354067, -64.583454],
+    [18.354339, -64.582901], [18.354689, -64.582593], [18.355176, -64.580134],
+    [18.355701, -64.579171], [18.356498, -64.57872], [18.356985, -64.578577],
+    [18.357471, -64.57872], [18.357704, -64.579151], [18.357977, -64.580708],
+    [18.359163, -64.582184], [18.359883, -64.582409], [18.360408, -64.582921],
+    [18.360738, -64.583434], [18.36103, -64.583618], [18.361633, -64.583762],
+    [18.361983, -64.584048], [18.362217, -64.584376], [18.362567, -64.584376],
+    [18.358093, -64.592184], [18.358074, -64.592184],
+  ] },
+  // Traced from "Peter Island Yacht Club - Dock.geojson" (2026-11-16). Marina berths.
+  { name: "Peter Island Yacht Club Dock", shorePower: true, poly: [
+    [18.358366, -64.577758], [18.357763, -64.577491], [18.357374, -64.57743],
+    [18.357218, -64.577491], [18.356791, -64.577491], [18.356596, -64.577225],
+    [18.356557, -64.576938], [18.356674, -64.575996], [18.356849, -64.575709],
+    [18.357199, -64.575463], [18.357335, -64.575565], [18.357899, -64.575483],
+    [18.358133, -64.575606], [18.358152, -64.575811], [18.358249, -64.575852],
+    [18.358405, -64.575872], [18.358522, -64.576262], [18.358638, -64.576446],
+    [18.358619, -64.576508], [18.358755, -64.576672], [18.358911, -64.576754],
+    [18.358988, -64.576795], [18.358366, -64.577758],
+  ] },
+  // Traced from "Peter Is - Deadmans Bay Moorings.geojson" (2026-11-16).
+  { name: "Deadman's Bay Moorings, Peter Island", poly: [
+    [18.354671, -64.570796], [18.357706, -64.570939], [18.358017, -64.567927],
+    [18.356636, -64.567845], [18.356461, -64.568049], [18.356149, -64.568193],
+    [18.354963, -64.568705], [18.354574, -64.569832], [18.35473, -64.570222],
+    [18.354671, -64.570775], [18.354671, -64.570796],
   ] },
 ];
 // Point-in-polygon via ray casting (lat/lon treated as a flat plane, fine at bay scale).
@@ -716,7 +770,7 @@ function renderAll(d) {
     row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + (cabRows || row("Cabin temperature", NA("No sensor yet")))));
   // Position and geofence
   const moved = d.track && d.track.some(r => Math.abs(r.lat - d.track[0].lat) > 0.0004 || Math.abs(r.lon - d.track[0].lon) > 0.0004);
-  const inside = pos ? metres(pos.lat, pos.lon, BASE.lat, BASE.lon) <= BASE.radius : null;
+  const inside = pos ? (BASE.poly ? inPolygon(pos.lat, pos.lon, BASE.poly) : metres(pos.lat, pos.lon, BASE.lat, BASE.lon) <= BASE.radius) : null;
   T.push(tile("Position", pos ? (inside ? "ok" : "watch") : "none", pos ? (inside ? "OK" : "Away") : "No data yet", "live",
     row("Latitude", pos ? dm(pos.lat, "N", "S") : NA("No position")) + row("Longitude", pos ? dm(pos.lon, "E", "W") : "—") + row("Course (true)", pos && pos.cog != null && moved ? fmt(pos.cog * RAD2DEG, 0) + "°" : NA("n/a at rest")) +
     row("Geofence", pos ? (inside ? "Inside " + BASE.name : "Outside " + BASE.name) : "—") + row("Track, 3 h", d.track && d.track.length ? (moved ? "Moved" : "At dock, no movement") : NA("No track"))));
