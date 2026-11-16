@@ -274,6 +274,26 @@ const STOPS = [
     [18.498239, -64.385584], [18.497887, -64.385614], [18.497591, -64.385658],
     [18.497591, -64.385941],
   ] },
+  // Traced from "Leverick Bay Fuel Dock.geojson" (2026-11-16). Nested in the Leverick Bay
+  // dockage/mooring field above; smallest-area match wins. Also in the fuel_docks table.
+  { name: "Leverick Bay Fuel Dock", poly: [
+    [18.498418, -64.386492], [18.498611, -64.386638], [18.498982, -64.386132],
+    [18.498784, -64.385944], [18.498423, -64.386492], [18.498418, -64.386492],
+  ] },
+  // Traced from "Virgin Gorda Yacht Harbor.geojson" (2026-11-16). Marina berths.
+  { name: "Virgin Gorda Yacht Harbor", shorePower: true, poly: [
+    [18.449687, -64.437606], [18.449163, -64.437753], [18.448771, -64.43629],
+    [18.45071, -64.435751], [18.450942, -64.436577], [18.450955, -64.436752],
+    [18.450929, -64.436878], [18.450763, -64.437039], [18.449687, -64.437347],
+    [18.449654, -64.437417], [18.449661, -64.437522], [18.449694, -64.437606],
+    [18.449687, -64.437606],
+  ] },
+  // Traced from "VGYH - Fuel Dock.geojson" (2026-11-16). Nested in the harbour above.
+  // Also in the fuel_docks table (keep in sync).
+  { name: "VGYH Fuel Dock", poly: [
+    [18.449063, -64.437305], [18.449282, -64.437235], [18.44901, -64.436241],
+    [18.448764, -64.436297], [18.449063, -64.437305],
+  ] },
   // Traced from "Cooper Island Moorings.geojson" (2026-11-06).
   { name: "Cooper Island Moorings", poly: [
     [18.388563, -64.513914], [18.388392, -64.513536], [18.388016, -64.513104],
