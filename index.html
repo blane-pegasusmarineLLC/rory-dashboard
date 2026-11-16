@@ -142,6 +142,16 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
   <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
   <button id="signin" class="primary" style="width:100%">Sign in</button>
   <div id="loginErr" class="err"></div>
+  <p style="margin-top:12px;font-size:13px"><a href="#" id="forgot">Forgot password?</a></p>
+</section>
+
+<section id="resetView" class="login hide">
+  <h1 class="serif">RORY</h1>
+  <p>Choose a new password.</p>
+  <input id="newpw" type="password" placeholder="New password (min 10 characters)" autocomplete="new-password">
+  <input id="newpw2" type="password" placeholder="Repeat new password" autocomplete="new-password">
+  <button id="setpw" class="primary" style="width:100%">Save new password</button>
+  <div id="resetErr" class="err"></div>
 </section>
 
 <section id="appView" class="hide">
@@ -871,8 +881,33 @@ function showLogin() { clearInterval(timer); $("appView").classList.add("hide");
   };
   $("pw").addEventListener("keydown", e => { if (e.key === "Enter") $("signin").click(); });
   $("signout").onclick = async () => { await sb.auth.signOut(); showLogin(); };
+
+  // Password reset: "Forgot password?" sends a Supabase recovery email; the link brings the
+  // user back here with a recovery session, and we show the set-new-password form.
+  $("forgot").onclick = async e => {
+    e.preventDefault();
+    const email = $("email").value.trim();
+    if (!email) { $("loginErr").textContent = "Enter your email above first."; return; }
+    await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    $("loginErr").textContent = "If that account exists, a reset link is on its way.";
+  };
+  const showReset = () => { clearInterval(timer); $("loginView").classList.add("hide"); $("appView").classList.add("hide"); $("resetView").classList.remove("hide"); };
+  let recovering = /type=recovery/.test(location.hash);
+  sb.auth.onAuthStateChange(ev => { if (ev === "PASSWORD_RECOVERY") { recovering = true; showReset(); } });
+  $("setpw").onclick = async () => {
+    const p = $("newpw").value;
+    $("resetErr").textContent = "";
+    if (p.length < 10) { $("resetErr").textContent = "Use at least 10 characters."; return; }
+    if (p !== $("newpw2").value) { $("resetErr").textContent = "The passwords don't match."; return; }
+    const { error } = await sb.auth.updateUser({ password: p });
+    if (error) { $("resetErr").textContent = "Couldn't save: " + error.message; return; }
+    $("newpw").value = $("newpw2").value = ""; recovering = false;
+    history.replaceState(null, "", location.pathname);
+    $("resetView").classList.add("hide"); start();
+  };
+
   const { data } = await sb.auth.getSession();
-  if (data.session) start(); else showLogin();
+  if (recovering) showReset(); else if (data.session) start(); else showLogin();
 })();
 </script>
 </body>
