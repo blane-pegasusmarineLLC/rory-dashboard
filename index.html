@@ -70,6 +70,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .ml{position:absolute;right:12px;top:12px;z-index:500;display:flex;gap:6px}
 .ml button{background:rgba(7,18,27,.85);color:#b9d3df;border-color:#2a5568;font-size:12px;padding:5px 11px}
 .ml button.on{border-color:#4cc9a0;color:#4cc9a0}
+.recenter a{display:flex!important;align-items:center;justify-content:center;color:#026395}
 .strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.8fr);background:var(--deck)}
 .strip>div{padding:10px 16px;border-left:1px solid var(--rule);min-width:0}
 .strip>div:first-child{border-left:0}
@@ -494,7 +495,7 @@ const WM_FILTER_HOURS_PATH = "electrical.watermaker.filterHours";
 
 const $ = id => document.getElementById(id);
 const MS2KN = 1.943844, RAD2DEG = 180 / Math.PI;
-let sb = null, vessel = null, map = null, trackLayer = null, marker = null, fenceLayer = null, timer = null;
+let lastHere = null, sb = null, vessel = null, map = null, trackLayer = null, marker = null, fenceLayer = null, timer = null;
 let showTrack = true, showFence = true;
 
 // ---- helpers
@@ -630,7 +631,10 @@ function bandChart(rows, floor) {
   const dmin = Math.min(...mins, ...means, floor), dmax = Math.max(...maxs, ...means, floor);
   const span = Math.max(dmax - dmin, 0.4), lo = dmin - span * 0.08, hi = dmax + span * 0.08;
   const n = rows.length;
-  const x = i => (i / (n - 1)) * (w - pad * 2) + pad;
+  // x is by timestamp, not row index, so hour gridlines line up even if a bucket is missing.
+  const tA = new Date(rows[0].ts).getTime(), tB = new Date(rows[n - 1].ts).getTime(), tSpan = Math.max(tB - tA, 1);
+  const xt = t => ((t - tA) / tSpan) * (w - pad * 2) + pad;
+  const x = i => xt(new Date(rows[i].ts).getTime());
   const y = v => h - pad - ((v - lo) / (hi - lo)) * (h - pad * 2);
   const top = rows.map((r, i) => [x(i), y(r.house_v_max ?? r.house_v_mean)]);
   const bot = rows.map((r, i) => [x(i), y(r.house_v_min ?? r.house_v_mean)]).reverse();
@@ -641,7 +645,22 @@ function bandChart(rows, floor) {
   const fy = y(floor);
   // Label above the line when there's room, else below -- never lets it collide with the axis text.
   const floorLabelY = fy > 12 ? fy - 4 : fy + 12;
+  // Hour grid: alternating shaded hours plus a hairline at every hour boundary (stronger every
+  // 6 h), and a label every 3 h, so you can count back hours along the trace.
+  const HOUR = 3600e3, grid = [];
+  let hb = new Date(tA); hb.setMinutes(0, 0, 0); hb = hb.getTime();
+  for (let t = hb; t < tB; t += HOUR) {
+    const hr = new Date(t).getHours(), xa = Math.max(xt(t), pad), xb = Math.min(xt(t + HOUR), w - pad);
+    if (hr % 2 === 0 && xb > xa) grid.push(`<rect x="${xa.toFixed(1)}" y="${pad}" width="${(xb - xa).toFixed(1)}" height="${h - pad * 2}" fill="var(--ink)" opacity="0.045"/>`);
+    if (t > tA) {
+      const xx = xt(t).toFixed(1);
+      grid.push(`<line x1="${xx}" y1="${pad}" x2="${xx}" y2="${h - pad}" stroke="var(--slate)" stroke-width="${hr % 6 === 0 ? 0.9 : 0.5}" opacity="${hr % 6 === 0 ? 0.5 : 0.3}"/>`);
+      if (hr % 3 === 0 && xt(t) > 50 && xt(t) < w - 50)
+        grid.push(`<text x="${xx}" y="${h + 14}" font-size="10" fill="var(--slate)" text-anchor="middle" opacity="0.85">${esc(new Date(t).toLocaleString([], { hour: "numeric" }))}</text>`);
+    }
+  }
   return `<svg viewBox="0 0 ${w} ${h + 16}" preserveAspectRatio="none" style="width:100%;height:auto">
+    ${grid.join("")}
     <line x1="${pad}" y1="${fy.toFixed(1)}" x2="${w - pad}" y2="${fy.toFixed(1)}" stroke="var(--alert)" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
     <text x="${pad}" y="${floorLabelY.toFixed(1)}" font-size="10" fill="var(--alertfg)">${fmt(floor, 1)} V floor</text>
     <polygon points="${bandPts}" fill="var(--blue)" opacity="0.14"/>
@@ -824,7 +843,7 @@ function renderAll(d) {
     row("House bank time remaining", houseTR && houseTR.last != null ? fmtDuration(houseTR.last) + qtag(houseTR) : NA("Not available yet")) +
     row("House bank current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) +
     row("Charging from", chargeSource(paths, zone, s.engines.some(e => e.running)) || NA("Not charging / unclear")) +
-    (band ? `<div class="r" style="display:block;margin-top:6px"><div class="k" style="margin-bottom:4px">House battery, last 24 hours</div>${band}<div class="na" style="font-size:11px">Line is the mean. Band is the minute-by-minute low and high. Dashed line is the low-voltage threshold.</div></div>` : "") +
+    (band ? `<div class="r" style="display:block;margin-top:6px"><div class="k" style="margin-bottom:4px">House battery, last 24 hours</div>${band}<div class="na" style="font-size:11px">Line is the mean. Band is the minute-by-minute low and high. Dashed line is the low-voltage threshold. Shaded stripes alternate by hour.</div></div>` : "") +
     (sagEvt ? `<div class="r" style="display:block;margin-top:6px"><span class="tag warn">Watch</span> House bank dropped below 12.2&nbsp;V at ${esc(new Date(sagEvt.ts).toLocaleString([], { hour: "numeric", minute: "2-digit" }))}.</div>` : ""),
     "House bank = instance 0 (Scheiber, prioritized over the port engine's start battery since 2026-11-06). Banks 2, 5 and 6 send voltage only; still unmapped to physical batteries. \"Charging from\" is inferred by elimination (no source is directly instrumented), not measured.", "w2"));
   // Security
@@ -877,7 +896,18 @@ function renderAll(d) {
 
 function renderTrack(rows, pos) {
   if (!map) {
-    map = L.map("map", { zoomControl: false, attributionControl: true }); L.control.zoom({ position: "bottomright" }).addTo(map);
+    map = L.map("map", { zoomControl: false, attributionControl: true });
+    // "Center on vessel" button, sits under the zoom buttons (bottom corners stack newest on top,
+    // so it's added first).
+    const Recenter = L.Control.extend({ options: { position: "bottomright" }, onAdd() {
+      const box = L.DomUtil.create("div", "leaflet-bar recenter");
+      box.innerHTML = `<a href="#" role="button" title="Center on Pegasus" aria-label="Center on Pegasus"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.5v3.5M12 19v3.5M1.5 12H5M19 12h3.5"/></svg></a>`;
+      L.DomEvent.disableClickPropagation(box);
+      L.DomEvent.on(box.firstChild, "click", e => { L.DomEvent.preventDefault(e); if (lastHere) map.setView(lastHere, Math.max(map.getZoom(), 15)); });
+      return box;
+    } });
+    new Recenter().addTo(map);
+    L.control.zoom({ position: "bottomright" }).addTo(map);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
     // Nautical marks overlay (buoys, lights, beacons) on top of the OSM base -- same approach
     // Freeboard-SK uses. OpenSeaMap has no full base map of its own; "seamark" is a transparent
@@ -900,6 +930,7 @@ function renderTrack(rows, pos) {
     if (showTrack) trackLayer.addTo(map);
   }
   const here = pos ? [pos.lat, pos.lon] : pts.length ? pts[pts.length - 1] : null;
+  lastHere = here;
   // Marker: an arrow pointing along the compass heading, converted magnetic -> true with
   // MAG_VAR_DEG so it lines up with the north-up map. Falls back to course over ground (already
   // true) when no heading is reported, and to a plain dot when neither is known.
