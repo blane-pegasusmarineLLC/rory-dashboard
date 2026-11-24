@@ -72,6 +72,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .card{background:var(--deck);border-radius:10px;padding:16px 18px}
 .card h3,.tile h4{font-family:"Bitstream Charter",Charter,Georgia,serif;font-size:18px;font-weight:700}
 .card h3{margin-bottom:8px}
+.card h3.ih{display:flex;align-items:center;gap:10px}
 .banner{background:var(--watchbg);color:var(--watchfg);border-radius:8px;padding:9px 14px;font-size:13.5px;margin-bottom:14px}
 .na{color:var(--slate);font-style:italic}
 .tag{font-size:11.5px;padding:1px 7px;border-radius:6px;background:var(--nonebg);color:var(--nonefg);margin-left:6px}
@@ -223,14 +224,14 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
       </div>
 
       <div class="side">
-        <div class="card ready"><h3>Charter readiness</h3>
+        <div class="card ready"><h3 class="ih"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>Charter readiness</h3>
           <div class="ai"><div id="gauge"></div><div class="why" id="why"></div></div>
           <div id="chkList" class="chklist"></div>
           <div class="note">The score starts at 100 and loses points for each item above. A safety-critical alert caps it at 50.</div>
         </div>
-        <div class="card"><h3>Maintenance due</h3><div id="maint"></div>
+        <div class="card"><h3 class="ih"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Maintenance due</h3><div id="maint"></div>
           <div class="note">Items tagged sample are placeholders and don't affect the score. Hours-based items will use engine hours once service intervals are set.</div></div>
-        <div class="card"><h3>Recent events</h3><div id="events"><span class="na">None yet</span></div></div>
+        <div class="card"><h3 class="ih"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Ship’s Log</h3><div id="events"><span class="na">None yet</span></div></div>
       </div>
     </div>
   </div>
