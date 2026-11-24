@@ -65,15 +65,18 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .mt{position:absolute;left:14px;top:12px;z-index:500;background:rgba(7,18,27,.82);color:#eaf2f6;padding:6px 12px;border-radius:6px;pointer-events:none}
 .mt b{font-family:"Bitstream Charter",Charter,Georgia,serif;font-size:17px}
 .mt span{display:block;font:11.5px "DejaVu Sans Mono",ui-monospace,monospace;color:#9cc0d0}
+.mt span.age{font:11.5px Inter,system-ui,sans-serif;color:#9cc0d0;opacity:.85;margin-top:1px}
+.boat{background:none;border:0}.boat svg{display:block;overflow:visible;transition:transform .4s}
 .ml{position:absolute;right:12px;top:12px;z-index:500;display:flex;gap:6px}
 .ml button{background:rgba(7,18,27,.85);color:#b9d3df;border-color:#2a5568;font-size:12px;padding:5px 11px}
 .ml button.on{border-color:#4cc9a0;color:#4cc9a0}
-.strip{display:grid;grid-template-columns:repeat(5,1fr);background:var(--deck)}
-.strip div{padding:10px 16px;border-left:1px solid var(--rule)}
-.strip div:first-child{border-left:0}
-.strip .k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate)}
-.strip .v{font-size:15px;font-weight:600;margin-top:2px}
-@media (max-width:700px){.strip{grid-template-columns:repeat(2,1fr)}.strip div{border-top:1px solid var(--rule)}}
+.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.8fr);background:var(--deck)}
+.strip>div{padding:10px 16px;border-left:1px solid var(--rule);min-width:0}
+.strip>div:first-child{border-left:0}
+.strip .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate)}
+.strip .v{font-size:15px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strip .v small{font-weight:400;color:var(--slate);margin-left:4px}
+@media (max-width:700px){.strip{grid-template-columns:repeat(2,minmax(0,1fr))}.strip>div{border-top:1px solid var(--rule)}.strip>div:nth-child(odd){border-left:0}}
 /* tiles */
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 @media (max-width:1180px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -175,7 +178,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
       <div>
         <div class="mapcard">
           <div id="map"></div>
-          <div class="mt"><b>Position</b><span id="mapSub">No position yet</span></div>
+          <div class="mt"><b>Position</b><span id="mapSub">No position yet</span><span id="mapAge" class="age"></span></div>
           <div class="ml"><button id="tgTrack" class="on">Track 3 h</button><button id="tgFence" class="on">Geofence</button></div>
           <div class="strip" id="strip"></div>
         </div>
@@ -435,6 +438,21 @@ function zoneArea(z) {
 // (most specific) one wins, not whichever happens to come first in the list. This makes zone
 // precedence a property of the zones' actual shapes, not something that silently depends on
 // the order they were added in.
+// Status word for the strip under the map. Moving: Underway. Stopped: inferred from the zone the
+// boat is in (no mooring/anchor sensor exists), by zone type and name:
+//   fuel dock -> At fuel dock; base, shore-power zones, docks, marinas -> Docked;
+//   named anchorage -> At anchor; any other stop (mooring fields, bays, which in the BVI are
+//   mostly mooring balls) -> On a mooring; outside every zone -> Stopped.
+function restState(sogKn, zone) {
+  if (sogKn == null) return "—";
+  if (sogKn >= 0.5) return "Underway";
+  if (!zone) return "Stopped";
+  const n = zone.name;
+  if (/fuel dock/i.test(n)) return "At fuel dock";
+  if (zone === BASE || zone.shorePower || /\bdock(age)?\b|marina|yacht harbou?r/i.test(n)) return "Docked";
+  if (/anchorage/i.test(n)) return "At anchor";
+  return "On a mooring";
+}
 function currentZone(lat, lon) {
   let best = null, bestArea = Infinity;
   for (const z of [BASE, ...STOPS]) {
@@ -730,12 +748,13 @@ function renderAll(d) {
     const sog = pos.sog != null ? pos.sog * MS2KN : null;
     const dist = metres(pos.lat, pos.lon, BASE.lat, BASE.lon);
     $("mapSub").textContent = `${dm(pos.lat, "N", "S")}, ${dm(pos.lon, "E", "W")}`;
+    $("mapAge").textContent = "Updated " + ago(pos.ts);
     $("strip").innerHTML = [
-      ["Status", sog != null && sog < 0.5 ? "At rest" : "Underway"], ["Speed", fmt(sog, 1) + " kn"],
-      ["Heading (mag)", pos.hdg != null ? fmt(pos.hdg * RAD2DEG, 0) + "°" : "—"],
-      ["Geofence", zone ? "Inside " + zone.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"], ["Updated", ago(pos.ts)]
-    ].map(x => `<div><div class="k">${x[0]}</div><div class="v">${x[1]}</div></div>`).join("");
-  } else { $("mapSub").textContent = "No position yet"; $("strip").innerHTML = ""; }
+      ["Status", restState(sog, zone)], ["Speed", sog != null ? fmt(sog, 1) + " kn" : "—"],
+      ["Heading (mag)", pos.hdg != null ? (h => `${h}°<small>${["N","NE","E","SE","S","SW","W","NW"][Math.round(h / 45) % 8]}</small>`)(Math.round(pos.hdg * RAD2DEG) % 360) : "—"],
+      ["Geofence", zone ? "Inside " + zone.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"]
+    ].map(x => `<div><div class="k">${x[0]}</div><div class="v" title="${String(x[1]).replace(/<[^>]+>/g, " ")}">${x[1]}</div></div>`).join("");
+  } else { $("mapSub").textContent = "No position yet"; $("mapAge").textContent = ""; $("strip").innerHTML = ""; }
 
   // tiles
   const T = [];
@@ -875,7 +894,14 @@ function renderTrack(rows, pos) {
     if (showTrack) trackLayer.addTo(map);
   }
   const here = pos ? [pos.lat, pos.lon] : pts.length ? pts[pts.length - 1] : null;
-  if (here) marker = L.circleMarker(here, { radius: 9, color: "#fff", weight: 3, fillColor: "#1b5fa8", fillOpacity: 1 }).addTo(map).bindTooltip("Pegasus", { permanent: true, direction: "right", offset: [10, 0] });
+  // Marker shows a pointer toward course over ground when underway (true), else the bow heading
+  // (magnetic; BVI variation is ~14 W, small at this zoom). Plain dot when neither is known.
+  const sogKn = pos && pos.sog != null ? pos.sog * MS2KN : null;
+  const dirRad = pos ? (sogKn != null && sogKn >= 0.5 && pos.cog != null ? pos.cog : pos.hdg) : null;
+  const ptr = dirRad != null ? `<path d="M22 1 30 16 22 12.5 14 16z" fill="#026395" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>` : "";
+  const boatIcon = L.divIcon({ className: "boat", iconSize: [44, 44], iconAnchor: [22, 22], tooltipAnchor: [10, 0],
+    html: `<svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(${dirRad != null ? Math.round(dirRad * RAD2DEG) : 0}deg)">${ptr}<circle cx="22" cy="22" r="8" fill="#1b5fa8" stroke="#fff" stroke-width="3"/></svg>` });
+  if (here) marker = L.marker(here, { icon: boatIcon, keyboard: false }).addTo(map).bindTooltip("Pegasus", { permanent: true, direction: "right", offset: [10, 0] });
   const moved = pts.some(p => Math.abs(p[0] - pts[0][0]) > 0.0004 || Math.abs(p[1] - pts[0][1]) > 0.0004);
   if (moved && trackLayer) map.fitBounds(trackLayer.getBounds(), { padding: [30, 30], maxZoom: 16 });
   else if (here) map.setView(here, 15);
