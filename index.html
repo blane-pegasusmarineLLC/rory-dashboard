@@ -89,6 +89,10 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .ml{position:absolute;right:12px;top:12px;z-index:500;display:flex;gap:6px}
 .ml button{background:rgba(7,18,27,.85);color:#b9d3df;border-color:#2a5568;font-size:12px;padding:5px 11px}
 .ml button.on{border-color:#4cc9a0;color:#4cc9a0}
+.seg{display:inline-flex;align-items:center;background:rgba(7,18,27,.85);border:1px solid #2a5568;border-radius:6px;padding:2px;gap:2px}
+.seg span{color:#9cc0d0;font-size:12px;padding:0 6px 0 8px}
+.ml .seg button{border:0;background:transparent;padding:3px 9px;border-radius:4px}
+.ml .seg button.on{background:rgba(76,201,160,.18);color:#4cc9a0}
 .recenter a{display:flex!important;align-items:center;justify-content:center;color:#026395}
 .strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.8fr);background:var(--deck)}
 .strip>div{padding:10px 16px;border-left:1px solid var(--rule);min-width:0}
@@ -213,7 +217,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
         <div class="mapcard">
           <div id="map"></div>
           <div class="mt"><b>Position</b><span id="mapSub">No position yet</span><span id="mapAge" class="age"></span></div>
-          <div class="ml"><button id="tgTrack" class="on">Track 3 h</button><button id="tgFence" class="on">Geofence</button></div>
+          <div class="ml"><div class="seg" id="tgTrack" role="group" aria-label="Track"><span>Track</span><button data-m="3h">3 h</button><button data-m="24h">24 h</button><button data-m="off">Off</button></div><button id="tgFence" class="on">Geofence</button></div>
           <div class="strip" id="strip"></div>
         </div>
         <div class="tiles" id="tiles"></div>
@@ -528,7 +532,39 @@ const WM_FILTER_HOURS_PATH = "electrical.watermaker.filterHours";
 const $ = id => document.getElementById(id);
 const MS2KN = 1.943844, RAD2DEG = 180 / Math.PI;
 let lastHere = null, sb = null, vessel = null, map = null, trackLayer = null, marker = null, fenceLayer = null, timer = null;
-let showTrack = true, showFence = true;
+let showFence = true;
+// Track mode: "3h" (default, comes with every refresh), "24h" (fetched on demand, cached
+// TRACK24_MS) or "off". Remembered per browser.
+let trackMode = "3h";
+try { const m = localStorage.getItem("rory.trackMode"); if (["3h", "24h", "off"].includes(m)) trackMode = m; } catch (e) {}
+const TRACK24_MS = 2 * 60 * 1000;
+let track24 = null, track24At = 0, lastTrackArgs = null;
+async function getTrack24() {
+  if (track24 && Date.now() - track24At < TRACK24_MS) return track24;
+  let rows;
+  if (DEMO) {
+    rows = Array.from({ length: 1440 }, (_, i) => { const a = i / 1440 * Math.PI * 2;  // a day's loop out and back, newest first
+      return { lat: 18.4118 + Math.sin(a) * 0.03, lon: -64.6139 + (1 - Math.cos(a)) * 0.05 }; });
+  } else {
+    // ~1 position a minute, so a day is ~1440 rows; the API caps a response at 1000, so page.
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString(), PAGE = 1000; rows = [];
+    for (let from = 0; from < 1500; from += PAGE) {
+      const r = await sb.from("vessel_pos").select("lat,lon").eq("vessel_id", vessel.id).gte("ts", since)
+        .order("ts", { ascending: false }).range(from, from + PAGE - 1);
+      if (r.error) throw r.error;
+      rows.push(...(r.data || []));
+      if (!r.data || r.data.length < PAGE) break;
+    }
+  }
+  track24 = rows; track24At = Date.now();
+  return rows;
+}
+function setTrackMode(m) {
+  trackMode = m;
+  try { localStorage.setItem("rory.trackMode", m); } catch (e) {}
+  document.querySelectorAll("#tgTrack button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  if (lastTrackArgs) drawTrack(...lastTrackArgs);
+}
 
 // ---- helpers
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -935,7 +971,15 @@ function renderAll(d) {
   renderTrack(d.track, pos);
 }
 
-function renderTrack(rows, pos) {
+// Picks the track for the current mode (24 h fetched on demand), then draws.
+function renderTrack(rows3h, pos) { lastTrackArgs = [rows3h, pos]; drawTrack(rows3h, pos); }
+async function drawTrack(rows3h, pos) {
+  let rows = rows3h;
+  if (trackMode === "24h") { try { rows = await getTrack24(); } catch (e) { console.warn("24 h track", e); } }
+  if (lastTrackArgs && lastTrackArgs[0] !== rows3h) return;   // a newer refresh superseded this draw
+  paintTrack(rows, pos);
+}
+function paintTrack(rows, pos) {
   if (!map) {
     map = L.map("map", { zoomControl: false, attributionControl: true });
     // "Center on vessel" button, sits under the zoom buttons (bottom corners stack newest on top,
@@ -956,7 +1000,7 @@ function renderTrack(rows, pos) {
     L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
       { maxZoom: 18, attribution: "Seamarks © OpenSeaMap" }).addTo(map);
     map.setView([BASE.lat, BASE.lon], 15);
-    $("tgTrack").onclick = e => { showTrack = !showTrack; e.target.classList.toggle("on", showTrack); if (trackLayer) showTrack ? trackLayer.addTo(map) : trackLayer.remove(); };
+    document.querySelectorAll("#tgTrack button").forEach(b => { b.classList.toggle("on", b.dataset.m === trackMode); b.onclick = () => setTrackMode(b.dataset.m); });
     $("tgFence").onclick = e => { showFence = !showFence; e.target.classList.toggle("on", showFence); if (fenceLayer) showFence ? fenceLayer.addTo(map) : fenceLayer.remove(); };
   }
   [trackLayer, marker, fenceLayer].forEach(l => l && l.remove()); trackLayer = marker = fenceLayer = null;
@@ -967,8 +1011,8 @@ function renderTrack(rows, pos) {
   if (showFence) fenceLayer.addTo(map);
   const pts = (rows || []).map(r => [r.lat, r.lon]).reverse();
   if (pts.length) {
-    trackLayer = L.polyline(pts, { color: "#1b5fa8", weight: 3 });
-    if (showTrack) trackLayer.addTo(map);
+    trackLayer = L.polyline(pts, { color: "#1b5fa8", weight: trackMode === "24h" ? 2.5 : 3, opacity: 0.9 });
+    if (trackMode !== "off") trackLayer.addTo(map);
   }
   const here = pos ? [pos.lat, pos.lon] : pts.length ? pts[pts.length - 1] : null;
   lastHere = here;
@@ -983,7 +1027,7 @@ function renderTrack(rows, pos) {
     html: `<svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(${dirRad != null ? Math.round(dirRad * RAD2DEG) : 0}deg)">${shape}</svg>` });
   if (here) marker = L.marker(here, { icon: boatIcon, keyboard: false }).addTo(map).bindTooltip("Pegasus", { permanent: true, direction: "right", offset: [10, 0] });
   const moved = pts.some(p => Math.abs(p[0] - pts[0][0]) > 0.0004 || Math.abs(p[1] - pts[0][1]) > 0.0004);
-  if (moved && trackLayer) map.fitBounds(trackLayer.getBounds(), { padding: [30, 30], maxZoom: 16 });
+  if (moved && trackLayer && trackMode !== "off") map.fitBounds(trackLayer.getBounds(), { padding: [30, 30], maxZoom: 16 });
   else if (here) map.setView(here, 15);
 }
 
