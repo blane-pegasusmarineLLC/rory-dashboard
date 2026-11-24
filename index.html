@@ -37,7 +37,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .top button{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
 /* page */
 .page{max-width:1320px;margin:0 auto;padding:20px 24px 40px}
-.hd{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.hd{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:4px 0 18px}
 .hd h2{font-size:34px;line-height:1}
 .hd .logo{display:block;height:44px;width:auto}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .hd .logo{filter:brightness(0) invert(1)}}
@@ -48,9 +48,27 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .chip.watch,.chip.check{background:var(--watchbg);color:var(--watchfg)}
 .chip.alert,.chip.alarm{background:var(--alertbg);color:var(--alertfg)}
 .chip.none,.chip.off{background:var(--nonebg);color:var(--nonefg)}
-.statuschip{font-size:13px;padding:4px 12px;margin-bottom:3px}
+.statuschip{font-size:14px;font-weight:600;padding:7px 14px;border-radius:999px;gap:6px}
+.statuschip .g{width:15px;height:15px}
+.chip.statuschip.ready{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ok) 35%,transparent)}
+.chip.statuschip.check{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--watch) 45%,transparent)}
+.chip.statuschip.alarm{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--alert) 40%,transparent)}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;align-items:start}
-@media (max-width:1020px){.grid{grid-template-columns:1fr}.side{order:-1}}
+@media (max-width:1020px){
+  /* Phone/tablet flow: readiness first, then map + system tiles, then maintenance and events. */
+  .grid{display:flex;flex-direction:column;align-items:stretch}
+  .grid>.side{display:contents}
+  .side .ready{order:-1}
+  .side>.card:not(.ready){order:1}
+}
+@media (max-width:560px){
+  .top{flex-wrap:nowrap;gap:10px;padding:10px 16px}
+  .brand small{display:none}
+  .top .pill{font-size:12px}
+  .top button{padding:4px 10px;font-size:13px}
+  .page{padding:16px 16px 32px}
+  .hd .logo{height:36px}
+}
 .card{background:var(--deck);border-radius:10px;padding:16px 18px}
 .card h3,.tile h4{font-family:"Bitstream Charter",Charter,Georgia,serif;font-size:18px;font-weight:700}
 .card h3{margin-bottom:8px}
@@ -85,8 +103,6 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 @media (max-width:700px){.tiles{grid-template-columns:1fr}}
 .tile{background:var(--deck);border-radius:10px;padding:14px 16px 12px;position:relative;display:flex;flex-direction:column}
 .tile.w2{grid-column:span 2}.tile.w3{grid-column:1 / -1}
-.gwrows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:32px}
-@media (max-width:700px){.gwrows{grid-template-columns:1fr}}
 @media (max-width:700px){.tile.w2{grid-column:span 1}}
 .th{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .th h4{flex:1}
@@ -95,17 +111,26 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .chip .g{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .r{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .r .k{color:var(--slate)}.r .v{text-align:right}
-.ft{font-size:12px;color:var(--slate);line-height:1.4;margin-top:8px;padding-right:96px}
-.bdg{align-self:flex-end;margin-top:auto;font:700 10px Inter,system-ui,sans-serif;letter-spacing:.07em;padding:3px 8px;border-radius:3px;white-space:nowrap}
-.tile .bdg{position:absolute;right:12px;bottom:10px}
-.tile{padding-bottom:36px}
-.b-live{background:var(--ink);color:var(--paper)}
-.b-plan{border:1.5px dashed var(--slate);color:var(--slate)}
-.b-man{background:#efe3b8;color:#5c4a0e}
+.ft{font-size:12px;color:var(--slate);line-height:1.45;margin-top:8px}
+.more{margin-top:4px}
+.more summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px;color:var(--brand);font-weight:600;font-size:11.5px}
+.more summary::-webkit-details-marker{display:none}
+.more summary::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s;margin-right:2px}
+.more[open] summary::before{transform:rotate(45deg)}
+.more>div{margin-top:4px}
+.bdg{display:inline-flex;align-items:center;gap:6px;font:600 10.5px Inter,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--slate);white-space:nowrap}
+.bdg::before{content:"";width:7px;height:7px;border-radius:50%;flex:none}
+.tf{margin-top:auto;padding-top:12px}
+.b-live::before{background:var(--ok)}
+.b-man::before{background:var(--brass)}
+.b-plan::before{width:5px;height:5px;border:1.5px dashed var(--slate)}
+.b-mix::before{background:linear-gradient(90deg,var(--ok) 50%,var(--none) 50%)}
 .bar{height:8px;background:var(--track);border-radius:5px;overflow:hidden;margin-top:4px}
 .bar>i{display:block;height:100%;background:var(--blue)}
 .tank{padding:6px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .tank .l{display:flex;justify-content:space-between}
+.tank .l>span:first-child{color:var(--slate)}
+.tank .l b{font-variant-numeric:tabular-nums}
 .tank:first-of-type{border-top:0}
 .banks{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;margin:4px 0 6px}
 .bank{border:1px solid var(--rule);border-radius:8px;padding:8px 10px}
@@ -116,23 +141,29 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 /* side column */
 .side{display:flex;flex-direction:column;gap:16px}
 .ai{display:flex;gap:6px;align-items:center}
+.ai{gap:14px}
 .why{flex:1}
-.why .lbl{font-size:12.5px;color:var(--slate);margin-bottom:4px}
-.why .l{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:6px 0;border-top:1px solid var(--rule)}
-.why .l b{color:var(--alertfg);font-variant-numeric:tabular-nums}
+.why .big{font:700 19px/1.2 "Bitstream Charter",Charter,Georgia,serif;color:var(--watchfg)}
+.why .big.ok{color:var(--okfg)}
+.why .sub{font-size:12.5px;color:var(--slate);margin-top:3px}
+.chklist{margin-top:10px}
+.chklist .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate);margin-bottom:2px}
+.chklist .l{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13.5px;padding:8px 0 8px 12px;border-top:1px solid var(--rule);position:relative}
+.chklist .l::before{content:"";position:absolute;left:0;top:14px;width:6px;height:6px;border-radius:50%;background:var(--none)}
+.chklist .l.act::before{background:var(--watch)}
+.chklist .l b{color:var(--alertfg);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .note{font-size:12.5px;color:var(--slate);line-height:1.4;margin-top:6px}
-.chk{background:var(--chkbg);border-left:5px solid var(--brass);border-radius:4px;padding:14px 18px}
-.chk h3{margin-bottom:6px}
-.chk .l{padding:7px 0;border-top:1px solid var(--chkrule);font-size:13.5px}
-.chk.clear{border-left-color:var(--ok);background:var(--okbg)}
 .m{display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--rule)}
 .m:first-of-type{border-top:0}
+.m .d{width:10px;height:10px;border-radius:50%;display:block}
+.m .d.ok{background:var(--ok)}.m .d.watch{background:var(--watch)}.m .d.alert{background:var(--alert)}.m .d.none{border:1.5px dashed var(--none)}
 .m b{display:block;font-size:13.5px}.m span{font-size:12.5px;color:var(--slate)}.m em{font-style:normal;font-size:12.5px;color:var(--slate);text-align:right}
 .evt{display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .evt:first-of-type{border-top:0}
 .evt time{color:var(--slate);min-width:112px}
-.key{display:flex;gap:10px;font-size:12.5px;color:var(--slate);align-items:center;margin:12px 0 0;flex-wrap:wrap}
-.key .bdg{position:static;margin:0}
+.key{display:flex;gap:8px 22px;font-size:12.5px;color:var(--slate);align-items:center;margin:14px 2px 0;flex-wrap:wrap}
+.key b{color:var(--ink);font-weight:600}
+.key .bdg{margin-right:4px}
 /* login */
 .login{max-width:340px;margin:12vh auto;padding:22px;background:var(--deck);border-radius:14px}
 .login h1{margin:0 0 4px;font-size:22px}
@@ -185,20 +216,20 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
           <div class="strip" id="strip"></div>
         </div>
         <div class="tiles" id="tiles"></div>
-        <div class="key"><b style="color:var(--ink)">Where each tile's data comes from:</b>
-          <span class="bdg b-live">LIVE TODAY</span>Pegasus reports it now
-          <span class="bdg b-man">MANUAL ENTRY</span>entered by staff
-          <span class="bdg b-plan">PLANNED</span>needs a sensor, a setting or an engine run</div>
+        <div class="key"><b>Data sources</b>
+          <span><span class="bdg b-live">Live</span> reported by Pegasus now</span>
+          <span><span class="bdg b-man">Manual entry</span> entered by staff</span>
+          <span><span class="bdg b-plan">Planned</span> needs a sensor, a setting or an engine run</span></div>
       </div>
 
       <div class="side">
-        <div class="card"><h3>Charter Readiness Score</h3>
+        <div class="card ready"><h3>Charter readiness</h3>
           <div class="ai"><div id="gauge"></div><div class="why" id="why"></div></div>
-          <div class="note">How ready the boat is to charter now. The rules are in the RULES block at the top of this page's script. A safety-critical alert caps the score at 50.</div>
+          <div id="chkList" class="chklist"></div>
+          <div class="note">The score starts at 100 and loses points for each item above. A safety-critical alert caps it at 50.</div>
         </div>
-        <div id="chk" class="chk"><h3>Check before handover</h3><div id="chkList"></div></div>
         <div class="card"><h3>Maintenance due</h3><div id="maint"></div>
-          <div class="note">Entries marked sample are placeholders and do not count toward the score. Edit the MAINT list in the script. Engine hours are now available (see Propulsion); hours-based items will use them once service intervals are entered.</div></div>
+          <div class="note">Items tagged sample are placeholders and don't affect the score. Hours-based items will use engine hours once service intervals are set.</div></div>
         <div class="card"><h3>Recent events</h3><div id="events"><span class="na">None yet</span></div></div>
       </div>
     </div>
@@ -535,6 +566,9 @@ function derive(d) {
   const age = st ? (Date.now() - new Date(st.ts).getTime()) / 1000 : Infinity;
   const online = !!st && pl.online !== false && age < RULES.silentMinutes * 60;
   const held = [], checks = [];
+  // Each item that costs points, with the action sentence staff see (some items, like
+  // maintenance due soon, cost points but need no action yet).
+  const add = (label, pts, check) => { held.push({ label, pts, check }); if (check) checks.push(check); };
   let alarm = false;
 
   const water = pv(paths, "tanks.freshWater.0.currentLevel"), fuel = pv(paths, "tanks.fuel.0.currentLevel");
@@ -542,7 +576,7 @@ function derive(d) {
     if (!usable(p)) return;
     if (p.last < target) {
       const pts = Math.min(RULES.maxPointsPerTank, Math.round((target - p.last) * 100 * RULES.pointsPerPercent));
-      if (pts > 0) { held.push({ label: `${name} ${Math.round(p.last * 100)}%, target ${Math.round(target * 100)}%`, pts }); checks.push(`${name} is at ${Math.round(p.last * 100)}%. The handover target is ${Math.round(target * 100)}%.`); }
+      if (pts > 0) add(`${name} ${Math.round(p.last * 100)}%, target ${Math.round(target * 100)}%`, pts, `${name} is at ${Math.round(p.last * 100)}%. The handover target is ${Math.round(target * 100)}%.`);
     }
   };
   tank(water, RULES.waterTarget, "Fresh water"); tank(fuel, RULES.fuelTarget, "Fuel");
@@ -550,29 +584,29 @@ function derive(d) {
   // batteries: lowest usable bank voltage
   const volts = Object.keys(paths).filter(k => /^electrical\.batteries\.\d+\.voltage$/.test(k)).map(k => paths[k]).filter(usable).map(p => p.last);
   const vmin = volts.length ? Math.min(...volts) : null;
-  if (vmin != null && vmin < RULES.batteryNotReadyV) { held.push({ label: `Battery ${fmt(vmin, 1)} V, below ${RULES.batteryNotReadyV} V`, pts: RULES.batteryFailPoints }); checks.push(`A battery bank is at ${fmt(vmin, 1)} V. Charge before handover.`); }
-  else if (vmin != null && vmin < RULES.batteryReadyV) { held.push({ label: `Battery ${fmt(vmin, 1)} V, target ${RULES.batteryReadyV} V`, pts: RULES.batteryCheckPoints }); checks.push(`A battery bank is at ${fmt(vmin, 1)} V. Target is ${RULES.batteryReadyV} V or more on shore power.`); }
+  if (vmin != null && vmin < RULES.batteryNotReadyV) { add(`Battery ${fmt(vmin, 1)} V, below ${RULES.batteryNotReadyV} V`, RULES.batteryFailPoints, `A battery bank is at ${fmt(vmin, 1)} V. Charge before handover.`); }
+  else if (vmin != null && vmin < RULES.batteryReadyV) { add(`Battery ${fmt(vmin, 1)} V, target ${RULES.batteryReadyV} V`, RULES.batteryCheckPoints, `A battery bank is at ${fmt(vmin, 1)} V. Target is ${RULES.batteryReadyV} V or more on shore power.`); }
 
   // hatches: latest state per contact path from recent events
   const latestState = {};
   (d.evts || []).forEach(e => { if (/\.contact$/.test(e.path) && !(e.path in latestState)) latestState[e.path] = e.state; });
   const openHatches = Object.entries(latestState).filter(([, s]) => s === "open").map(([p]) => pretty(p.replace(/^environment\.inside\./, "").replace(/\.contact$/, "")));
-  if (openHatches.length) { held.push({ label: `${openHatches.length} hatch or door open`, pts: RULES.hatchOpenPoints }); checks.push(`Open: ${openHatches.join(", ")}.`); }
+  if (openHatches.length) { add(`${openHatches.length} hatch or door open`, RULES.hatchOpenPoints, `Open: ${openHatches.join(", ")}.`); }
 
   // engines
   const engines = ENGINES.map(en => ({ ...en, ...engineInfo(d, en) }));
   const engineSeen = engines.some(e => e.seen != null);
   engines.forEach(e => {
     const names = l => l.map(f => pretty(f).toLowerCase()).join(", ");
-    if (e.faults.length) { alarm = true; held.push({ label: `${e.label} fault`, pts: RULES.engineFaultPoints }); checks.push(`${e.label} fault: ${names(e.faults)}.`); }
-    else if (e.warns.length) { held.push({ label: `${e.label} warning`, pts: RULES.engineWarnPoints }); checks.push(`${e.label} warning: ${names(e.warns)}.`); }
+    if (e.faults.length) { alarm = true; add(`${e.label} fault`, RULES.engineFaultPoints, `${e.label} fault: ${names(e.faults)}.`); }
+    else if (e.warns.length) { add(`${e.label} warning`, RULES.engineWarnPoints, `${e.label} warning: ${names(e.warns)}.`); }
   });
 
   // maintenance by date
   MAINT.forEach(m => {
     if (!m.due || m.sample) return; const dd = daysUntil(m.due);
-    if (dd < 0) { held.push({ label: `${m.label} overdue`, pts: RULES.maintOverduePoints }); checks.push(`${m.label} is overdue (${m.detail}).`); }
-    else if (dd <= RULES.maintSoonDays) { held.push({ label: `${m.label} due in ${dd} days`, pts: RULES.maintSoonPoints }); }
+    if (dd < 0) { add(`${m.label} overdue`, RULES.maintOverduePoints, `${m.label} is overdue (${m.detail}).`); }
+    else if (dd <= RULES.maintSoonDays) { add(`${m.label} due in ${dd} days`, RULES.maintSoonPoints); }
   });
 
   let score = Math.max(0, 100 - held.reduce((a, h) => a + h.pts, 0));
@@ -693,7 +727,7 @@ function fmtDuration(s) {
   if (h >= 1) return Math.floor(h) + "h " + Math.round((h % 1) * 60) + "m";
   return Math.round(s / 60) + " min";
 }
-const BADGE = { live: ["LIVE TODAY", "b-live"], plan: ["PLANNED", "b-plan"], man: ["MANUAL ENTRY", "b-man"], mixp: ["LIVE + PLANNED", "b-plan"], mixm: ["LIVE + MANUAL", "b-live"] };
+const BADGE = { live: ["Live", "b-live"], plan: ["Planned", "b-plan"], man: ["Manual entry", "b-man"], mixp: ["Live + planned", "b-mix"], mixm: ["Live + manual", "b-live"] };
 // Section icons (24px line icons) shown before each tile title.
 const ICONS = {
   "Safety critical": '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24"/>',
@@ -703,8 +737,7 @@ const ICONS = {
   "Electrical and power": '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
   "Security": '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   "Environment": '<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/>',
-  "Position": '<circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36z"/>',
-  "Gateway and data": '<path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>',
+  "Gateway": '<path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>',
 };
 // Status glyphs inside the chip, so status reads from word + shape + colour.
 const GLYPH = {
@@ -716,10 +749,14 @@ const GLYPH = {
 };
 GLYPH.ready = GLYPH.ok; GLYPH.check = GLYPH.watch; GLYPH.alarm = GLYPH.alert;
 const chipInner = (st, label) => `<svg class="g" viewBox="0 0 24 24" aria-hidden="true">${GLYPH[/^off$/i.test(label) ? "off" : st] || GLYPH.none}</svg>${label}`;
+// Tile footnote: a plain string, or { text, more } where "more" holds technical detail
+// behind a "Data notes" toggle so staff see only the line they need.
+const footHtml = foot => !foot ? "" : typeof foot === "string" ? `<div class="ft">${foot}</div>`
+  : `<div class="ft">${foot.text ? `<div>${foot.text}</div>` : ""}<details class="more"><summary>Data notes</summary><div>${foot.more}</div></details></div>`;
 function tile(name, st, stlab, badge, rowsHtml, foot, cls) {
   const [b, bc] = BADGE[badge];
   const ico = ICONS[name] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>` : "";
-  return `<div class="tile ${cls || ""}"><div class="th">${ico}<h4>${name}</h4><span class="chip ${st}">${chipInner(st, stlab)}</span></div>${rowsHtml}${foot ? `<div class="ft">${foot}</div>` : ""}<span class="bdg ${bc}">${b}</span></div>`;
+  return `<div class="tile ${cls || ""}"><div class="th">${ico}<h4>${name}</h4><span class="chip ${st}">${chipInner(st, stlab)}</span></div>${rowsHtml}${footHtml(foot)}<div class="tf"><span class="bdg ${bc}">${b}</span></div></div>`;
 }
 const row = (k, v) => `<div class="r"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const NA = t => `<span class="na">${t}</span>`;
@@ -761,9 +798,14 @@ function renderAll(d) {
   // score, why, checks, maintenance
   $("gauge").innerHTML = gauge(s.score);
   const held = s.held.slice().sort((a, b) => b.pts - a.pts);
-  $("why").innerHTML = `<div class="lbl">${s.score == null ? "Boat is silent, so no score" : held.length ? "Held back by" : "Nothing holding it back"}</div>` + held.map(h => `<div class="l"><span>${esc(h.label)}</span><b>-${h.pts}</b></div>`).join("");
-  $("chk").className = "chk" + (s.checks.length ? "" : " clear");
-  $("chkList").innerHTML = s.checks.length ? s.checks.map(c => `<div class="l">${esc(c)}</div>`).join("") : `<div class="l">${s.online ? "Nothing to check right now." : "Waiting for the boat to report."}</div>`;
+  const nChk = s.checks.length;
+  $("why").innerHTML = s.score == null
+    ? `<div class="big">No score</div><div class="sub">The boat is silent. ${esc(s.label)}.</div>`
+    : nChk ? `<div class="big">${nChk} ${nChk === 1 ? "item" : "items"} to check</div><div class="sub">before the next handover</div>`
+    : `<div class="big ok">Ready to hand over</div><div class="sub">${held.length ? "Minor items only, see below" : "Nothing holding it back"}</div>`;
+  $("chkList").innerHTML = held.length
+    ? `<div class="lbl">${nChk ? "Before handover" : "Held back by"}</div>` + held.map(h => `<div class="l${h.check ? " act" : ""}"><span>${esc(h.check || h.label)}</span><b>&minus;${h.pts}</b></div>`).join("")
+    : "";
   $("maint").innerHTML = MAINT.map(m => {
     let c = "none", when = m.needs || "", dd = null;
     if (m.due) { dd = daysUntil(m.due); c = dd < 0 ? "alert" : dd <= RULES.maintSoonDays ? "watch" : "ok"; when = dd < 0 ? Math.abs(dd) + " days overdue" : dd < 90 ? dd + " days" : Math.round(dd / 30) + " months"; }
@@ -777,7 +819,7 @@ function renderAll(d) {
     $("mapSub").textContent = `${dm(pos.lat, "N", "S")}, ${dm(pos.lon, "E", "W")}`;
     $("mapAge").textContent = "Updated " + ago(pos.ts);
     $("strip").innerHTML = [
-      ["Status", restState(sog, zone)], ["Speed", sog != null ? fmt(sog, 1) + " kn" : "—"],
+      ["Status", restState(sog, zone)], ["Speed", sog == null ? "—" : fmt(sog, 1) + " kn" + (sog >= 0.5 && pos.cog != null ? `<small>· ${Math.round(pos.cog * RAD2DEG) % 360}° T</small>` : "")],
       ["Heading (mag)", pos.hdg != null ? (h => `<svg class="hdg" viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(${h}deg)"><path d="M12 2.5 19 20.5 12 16.5 5 20.5z"/></svg>${h}°<small>${["N","NE","E","SE","S","SW","W","NW"][Math.round(h / 45) % 8]}</small>`)(Math.round(pos.hdg * RAD2DEG) % 360) : "—"],
       ["Geofence", zone ? "Inside " + zone.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"]
     ].map(x => `<div><div class="k">${x[0]}</div><div class="v" title="${String(x[1]).replace(/<[^>]+>/g, " ")}">${x[1]}</div></div>`).join("");
@@ -812,9 +854,8 @@ function renderAll(d) {
     row("Engine hours", hrs) +
     row("Coolant temperature", anyRun ? per(e => live(e, e.temp) ? fmt(e.temp.last - 273.15, 0) : null) + " °C" : "") +
     row("Oil pressure", anyRun ? per(e => live(e, e.oil) ? fmt(e.oil.last * 0.000145038, 0) : null) + " psi" : "") +
-    row("Alternators", anyRun ? per(e => live(e, e.alt) ? fmt(e.alt.last, 1) : null) + " V" : "") +
-    row("Generator", NA("Not on the boat network")),
-    (ENGINE_LABELS_CONFIRMED ? "" : "Port and starboard follow Signal K's convention and are not yet confirmed. ") + "Fuel rate, engine load and boost are not shown until verified."));
+    row("Alternators", anyRun ? per(e => live(e, e.alt) ? fmt(e.alt.last, 1) : null) + " V" : ""),
+    { more: (ENGINE_LABELS_CONFIRMED ? "" : "Port and starboard follow Signal K's convention and are not yet confirmed by the crew. ") + "Fuel rate, engine load and boost are not shown until verified." }));
   // Fuel
   const lvl = (p, label, extra) => { if (!p) return ""; const pct = p.last != null ? Math.round(p.last * 100) : null; return `<div class="tank"><div class="l"><span>${label}${extra || ""}${p.q === "stale" ? qtag(p) : ""}</span><b>${pct != null ? pct + " %" : "—"}</b></div><div class="bar"><i style="width:${pct || 0}%"></i></div></div>`; };
   const fuelSt = !s.fuel ? "none" : s.fuel.last < RULES.fuelTarget ? "watch" : "ok";
@@ -837,7 +878,7 @@ function renderAll(d) {
   const houseTR = pv(paths, "electrical.batteries.0.capacity.timeRemaining");
   const sagEvt = (d.evts || []).find(e => e.kind === "threshold" && e.state === "breach" && /^electrical\.batteries\.\d+\.voltage$/.test(e.path || ""));
   const band = bandChart(d.battHist, RULES.lowVoltageFloor);
-  T.push(tile("Electrical and power", elSt, elSt === "none" ? "No data yet" : elSt === "ok" ? "OK" : elSt === "alert" ? "Alert" : "Watch", "live",
+  T.push(tile("Electrical and power", elSt, elSt === "none" ? "No data yet" : elSt === "ok" ? "OK" : elSt === "alert" ? "Alert" : "Watch", "mixp",
     (banks ? `<div class="banks">${banks}</div>` : row("Battery banks", NA("No data yet"))) +
     row("House bank charge", (() => { if (!houseSoc || houseSoc.last == null) return NA("Not available yet");
       const pct = houseSoc.last * 100;
@@ -845,9 +886,12 @@ function renderAll(d) {
     row("House bank time remaining", houseTR && houseTR.last != null ? fmtDuration(houseTR.last) + qtag(houseTR) : NA("Not available yet")) +
     row("House bank current", (() => { const c = pv(paths, "electrical.batteries.0.current"); return c && c.last != null ? fmt(c.last, 1) + " A" : NA("Not available yet"); })()) +
     row("Charging from", chargeSource(paths, zone, s.engines.some(e => e.running)) || NA("Not charging / unclear")) +
+    // Stub until the generator interface is connected (running state, hours, output).
+    row("Generator", NA("Not connected yet")) +
     (band ? `<div class="r" style="display:block;margin-top:6px"><div class="k" style="margin-bottom:4px">House battery, last 24 hours</div>${band}<div class="na" style="font-size:11px">Line is the mean. Band is the minute-by-minute low and high. Dashed line is the low-voltage threshold. Shaded stripes alternate by hour.</div></div>` : "") +
     (sagEvt ? `<div class="r" style="display:block;margin-top:6px"><span class="tag warn">Watch</span> House bank dropped below 12.2&nbsp;V at ${esc(new Date(sagEvt.ts).toLocaleString([], { hour: "numeric", minute: "2-digit" }))}.</div>` : ""),
-    "House bank = instance 0 (Scheiber, prioritized over the port engine's start battery since 2026-11-06). Banks 2, 5 and 6 send voltage only; still unmapped to physical batteries. \"Charging from\" is inferred by elimination (no source is directly instrumented), not measured.", "w2"));
+    { text: "\u201cCharging from\u201d is inferred, not measured.",
+      more: "No charge source is directly instrumented, so \u201cCharging from\u201d is worked out by elimination. The house bank is battery instance 0 (the Scheiber shunt), which takes priority over the port engine's start battery since 6 Nov 2026. Banks 2, 5 and 6 report voltage only and aren't yet matched to physical batteries. The generator row fills in once its interface is connected." }, "w2"));
   // Security
   T.push(tile("Security", s.openHatches.length ? "watch" : hs ? "ok" : "none", s.openHatches.length ? "Watch" : hs ? "OK" : "No data yet", "live",
     row("Hatch and door sensors", hs ? `${hs} reporting, ${s.openHatches.length} open` : NA("No sensor events yet")) +
@@ -866,12 +910,6 @@ function renderAll(d) {
   T.push(tile("Environment", dp || wt || wsp || cab.length ? "ok" : "none", dp || wt || wsp || cab.length ? "OK" : "No data yet", "live",
     row("Depth below keel", dp ? fmt(dp.last, 1) + " m" + qtag(dp) : NA("No data")) + row("Water temperature", wt ? fmt(wt.last - 273.15, 1) + " °C" + qtag(wt) : NA("No data")) +
     row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + (cabRows || row("Cabin temperature", NA("No sensor yet")))));
-  // Position and geofence
-  const moved = d.track && d.track.some(r => Math.abs(r.lat - d.track[0].lat) > 0.0004 || Math.abs(r.lon - d.track[0].lon) > 0.0004);
-  const inside = pos ? (BASE.poly ? inPolygon(pos.lat, pos.lon, BASE.poly) : metres(pos.lat, pos.lon, BASE.lat, BASE.lon) <= BASE.radius) : null;
-  T.push(tile("Position", pos ? (inside ? "ok" : "watch") : "none", pos ? (inside ? "OK" : "Away") : "No data yet", "live",
-    row("Latitude", pos ? dm(pos.lat, "N", "S") : NA("No position")) + row("Longitude", pos ? dm(pos.lon, "E", "W") : "—") + row("Course (true)", pos && pos.cog != null && moved ? fmt(pos.cog * RAD2DEG, 0) + "°" : NA("n/a at rest")) +
-    row("Geofence", pos ? (inside ? "Inside " + BASE.name : "Outside " + BASE.name) : "—") + row("Track, 3 h", d.track && d.track.length ? (moved ? "Moved" : "At dock, no movement") : NA("No track"))));
   // Gateway
   const pl = s.pl, gw = [
     ["Last report", d.status ? ago(d.status.ts) : "—"],
@@ -882,7 +920,7 @@ function renderAll(d) {
     ["Memory available", pl.mem_avail_mb != null ? pl.mem_avail_mb + " MB" : "—"], ["Swap used", pl.swap_used_mb != null ? pl.swap_used_mb + " MB" : "—"],
     ["Clock skew", pl.skew_s != null ? fmt(pl.skew_s, 1) + " s" : "—"]];
   const gwSt = !d.status ? "none" : !s.online ? "alert" : (pl.cpu_temp_c != null && pl.cpu_temp_c >= 78) || (pl.dropped > 0) ? "watch" : "ok";
-  T.push(tile("Gateway and data", gwSt, gwSt === "none" ? "No data yet" : gwSt === "ok" ? "OK" : gwSt === "alert" ? "Offline" : "Watch", "live", `<div class="gwrows">${gw.map(r => row(r[0], r[1])).join("")}</div>`, "", "w3"));
+  T.push(tile("Gateway", gwSt, gwSt === "none" ? "No data yet" : gwSt === "ok" ? "OK" : gwSt === "alert" ? "Offline" : "Watch", "live", gw.map(r => row(r[0], r[1])).join("")));
   $("tiles").innerHTML = T.join("");
 
   // events
