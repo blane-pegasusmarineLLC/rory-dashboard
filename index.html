@@ -648,6 +648,7 @@ function bandChart(rows, floor) {
   // Hour grid: alternating shaded hours plus a hairline at every hour boundary (stronger every
   // 6 h), and a label every 3 h, so you can count back hours along the trace.
   const HOUR = 3600e3, grid = [];
+  const edgeW0 = fmtT(t0).length * 6.4, edgeW1 = fmtT(t1).length * 6.4;  // start/end labels, ~11px font
   let hb = new Date(tA); hb.setMinutes(0, 0, 0); hb = hb.getTime();
   for (let t = hb; t < tB; t += HOUR) {
     const hr = new Date(t).getHours(), xa = Math.max(xt(t), pad), xb = Math.min(xt(t + HOUR), w - pad);
@@ -655,7 +656,8 @@ function bandChart(rows, floor) {
     if (t > tA) {
       const xx = xt(t).toFixed(1);
       grid.push(`<line x1="${xx}" y1="${pad}" x2="${xx}" y2="${h - pad}" stroke="var(--slate)" stroke-width="${hr % 6 === 0 ? 0.9 : 0.5}" opacity="${hr % 6 === 0 ? 0.5 : 0.3}"/>`);
-      if (hr % 3 === 0 && xt(t) > 50 && xt(t) < w - 50)
+      const lw = new Date(t).toLocaleString([], { hour: "numeric" }).length * 5.8;  // ~10px font
+      if (hr % 3 === 0 && xt(t) - lw / 2 > pad + edgeW0 + 8 && xt(t) + lw / 2 < w - pad - edgeW1 - 8)
         grid.push(`<text x="${xx}" y="${h + 14}" font-size="10" fill="var(--slate)" text-anchor="middle" opacity="0.85">${esc(new Date(t).toLocaleString([], { hour: "numeric" }))}</text>`);
     }
   }
@@ -1009,8 +1011,19 @@ async function load() {
     const needBattHist = now - battHistAt >= BATT_HIST_MS;
     if (needBattHist) {
       const since24h = new Date(now - 24 * 3600 * 1000).toISOString();
-      fetches.push(sb.from("vessel_battery_minute").select("ts,house_v_mean,house_v_min,house_v_max")
-        .eq("vessel_id", vessel.id).gte("ts", since24h).order("ts", { ascending: true }).limit(1440));
+      // Supabase caps a response at 1000 rows, and a day is 1440 minutes: page through it
+      // (a single ascending .limit(1440) silently dropped the newest ~7 h).
+      fetches.push((async () => {
+        const PAGE = 1000, out = [];
+        for (let from = 0; from < 1440; from += PAGE) {
+          const r = await sb.from("vessel_battery_minute").select("ts,house_v_mean,house_v_min,house_v_max")
+            .eq("vessel_id", vessel.id).gte("ts", since24h).order("ts", { ascending: true }).range(from, Math.min(from + PAGE, 1440) - 1);
+          if (r.error) return r;
+          out.push(...(r.data || []));
+          if (!r.data || r.data.length < Math.min(PAGE, 1440 - from)) break;
+        }
+        return { data: out, error: null };
+      })());
     }
     const [st, pos, lat, hist, trk, evt, eng, battRes] = await Promise.all(fetches);
     for (const r of [st, pos, lat, hist, trk, evt, eng]) if (r.error) throw r.error;
