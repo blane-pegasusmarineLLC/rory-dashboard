@@ -858,7 +858,7 @@ function renderAll(d) {
     $("strip").innerHTML = [
       ["Status", restState(sog, zone)], ["Speed", sog == null ? "—" : fmt(sog, 1) + " kn" + (sog >= 0.5 && pos.cog != null ? `<small>· ${Math.round(pos.cog * RAD2DEG) % 360}° T</small>` : "")],
       ["Heading (mag)", pos.hdg != null ? (h => `<svg class="hdg" viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(${h}deg)"><path d="M12 2.5 19 20.5 12 16.5 5 20.5z"/></svg>${h}°<small>${["N","NE","E","SE","S","SW","W","NW"][Math.round(h / 45) % 8]}</small>`)(Math.round(pos.hdg * RAD2DEG) % 360) : "—"],
-      ["Geofence", zone ? "Inside " + zone.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"]
+      ["Location", zone ? "Inside " + zone.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"]
     ].map(x => `<div><div class="k">${x[0]}</div><div class="v" title="${String(x[1]).replace(/<[^>]+>/g, " ")}">${x[1]}</div></div>`).join("");
   } else { $("mapSub").textContent = "No position yet"; $("mapAge").textContent = ""; $("strip").innerHTML = ""; }
 
