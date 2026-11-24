@@ -899,15 +899,15 @@ function renderTrack(rows, pos) {
     if (showTrack) trackLayer.addTo(map);
   }
   const here = pos ? [pos.lat, pos.lon] : pts.length ? pts[pts.length - 1] : null;
-  // Marker shows a pointer toward course over ground when underway (already true), else the bow
-  // heading converted magnetic -> true with MAG_VAR_DEG so it lines up with the north-up map.
-  // Plain dot when neither is known.
-  const sogKn = pos && pos.sog != null ? pos.sog * MS2KN : null;
-  const dirRad = pos ? (sogKn != null && sogKn >= 0.5 && pos.cog != null ? pos.cog
-    : pos.hdg != null ? pos.hdg + MAG_VAR_DEG / RAD2DEG : null) : null;
-  const ptr = dirRad != null ? `<path d="M22 1 30 16 22 12.5 14 16z" fill="#026395" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>` : "";
-  const boatIcon = L.divIcon({ className: "boat", iconSize: [44, 44], iconAnchor: [22, 22], tooltipAnchor: [10, 0],
-    html: `<svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(${dirRad != null ? Math.round(dirRad * RAD2DEG) : 0}deg)">${ptr}<circle cx="22" cy="22" r="8" fill="#1b5fa8" stroke="#fff" stroke-width="3"/></svg>` });
+  // Marker: an arrow pointing along the compass heading, converted magnetic -> true with
+  // MAG_VAR_DEG so it lines up with the north-up map. Falls back to course over ground (already
+  // true) when no heading is reported, and to a plain dot when neither is known.
+  const dirRad = !pos ? null : pos.hdg != null ? pos.hdg + MAG_VAR_DEG / RAD2DEG : pos.cog != null ? pos.cog : null;
+  const shape = dirRad != null
+    ? `<path d="M22 5 33 37 22 30.5 11 37z" fill="#026395" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>`
+    : `<circle cx="22" cy="22" r="8" fill="#026395" stroke="#fff" stroke-width="3"/>`;
+  const boatIcon = L.divIcon({ className: "boat", iconSize: [44, 44], iconAnchor: [22, 22], tooltipAnchor: [12, 0],
+    html: `<svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(${dirRad != null ? Math.round(dirRad * RAD2DEG) : 0}deg)">${shape}</svg>` });
   if (here) marker = L.marker(here, { icon: boatIcon, keyboard: false }).addTo(map).bindTooltip("Pegasus", { permanent: true, direction: "right", offset: [10, 0] });
   const moved = pts.some(p => Math.abs(p[0] - pts[0][0]) > 0.0004 || Math.abs(p[1] - pts[0][1]) > 0.0004);
   if (moved && trackLayer) map.fitBounds(trackLayer.getBounds(), { padding: [30, 30], maxZoom: 16 });
