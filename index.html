@@ -10,14 +10,14 @@
   --paper:#e8edf0; --deck:#fbfcfc; --ink:#1a1a2e; --slate:#5b6b7c; --rule:#cbd3d9; --blue:#1b5fa8; --brass:#c8a84b;
   --ok:#2f7d68; --okbg:#e1f0ea; --okfg:#1f6552; --watch:#e0b43a; --watchbg:#f6eed5; --watchfg:#6f5a17;
   --alert:#b3261e; --alertbg:#f8e1de; --alertfg:#9e241c; --nonebg:#e6e9ec; --nonefg:#465566; --none:#8795a3;
-  --track:#e3e8ec; --sel:#edf3fa; --chkbg:#fbf4dc; --chkrule:#e7d9a5; --topbg:#1a1a2e;
+  --track:#e3e8ec; --sel:#edf3fa; --chkbg:#fbf4dc; --chkrule:#e7d9a5; --topbg:#026395; /* Bahama Blue, Pegasus identity colour */
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#0b141d; --deck:#121f2b; --ink:#e8eef4; --slate:#93a4b5; --rule:#22313f; --blue:#6db4ee; --brass:#d8b95a;
     --ok:#4cc9a0; --okbg:#143a30; --okfg:#7fe0bf; --watch:#e8c35b; --watchbg:#3a3114; --watchfg:#f0d884;
     --alert:#ff6b5b; --alertbg:#42201d; --alertfg:#ff9d92; --nonebg:#1c2a37; --nonefg:#a9b9c8; --none:#7d8fa1;
-    --track:#22313f; --sel:#16293a; --chkbg:#2f2a14; --chkrule:#4a4220; --topbg:#0f1a25;
+    --track:#22313f; --sel:#16293a; --chkbg:#2f2a14; --chkrule:#4a4220; --topbg:#026395;
   }
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -39,6 +39,9 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .page{max-width:1320px;margin:0 auto;padding:20px 24px 40px}
 .hd{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .hd h2{font-size:34px;line-height:1}
+.hd .logo{display:block;height:44px;width:auto}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .hd .logo{filter:brightness(0) invert(1)}}
+:root[data-theme="dark"] .hd .logo{filter:brightness(0) invert(1)}
 .hd .s{color:var(--slate);margin-top:6px}
 .chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:4px;white-space:nowrap}
 .chip.ok,.chip.ready{background:var(--okbg);color:var(--okfg)}
@@ -164,7 +167,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
   <div class="page">
     <div id="demoBanner" class="banner hide">Demo data. This is not live boat data.</div>
     <div class="hd">
-      <div><h2 id="vname" class="serif">Pegasus</h2><div class="s" id="vsub">Lagoon 43 catamaran. Road Town, Tortola.</div></div>
+      <div><h2 id="vname" class="serif"><img class="logo" src="pegasus-logo.png" alt="Pegasus"></h2><div class="s" id="vsub">Lagoon 43 catamaran. Road Town, Tortola.</div></div>
       <span id="statusChip" class="chip none statuschip">Loading</span>
     </div>
 
@@ -941,7 +944,8 @@ async function start() {
     if (error || !data || !data.length) { $("connTxt").textContent = "No vessels for this account"; return; }
     vessel = data[0];
   }
-  $("vname").textContent = String(vessel.name).replace(/^S\/V\s+/i, "");
+  const vn = String(vessel.name).replace(/^S\/V\s+/i, "");
+  if (!/^pegasus$/i.test(vn)) $("vname").textContent = vn; // other vessels: plain name, Pegasus keeps its logo
   const tick = () => load().catch(e => { $("connTxt").textContent = "Error loading: " + (e.message || e); $("connPill").className = "pill bad"; });
   await tick(); clearInterval(timer); timer = setInterval(tick, REFRESH_MS);
   setTimeout(() => map && map.invalidateSize(), 200);
