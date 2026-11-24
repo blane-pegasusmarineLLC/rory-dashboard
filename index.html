@@ -10,14 +10,14 @@
   --paper:#e8edf0; --deck:#fbfcfc; --ink:#1a1a2e; --slate:#5b6b7c; --rule:#cbd3d9; --blue:#1b5fa8; --brass:#c8a84b;
   --ok:#2f7d68; --okbg:#e1f0ea; --okfg:#1f6552; --watch:#e0b43a; --watchbg:#f6eed5; --watchfg:#6f5a17;
   --alert:#b3261e; --alertbg:#f8e1de; --alertfg:#9e241c; --nonebg:#e6e9ec; --nonefg:#465566; --none:#8795a3;
-  --track:#e3e8ec; --sel:#edf3fa; --chkbg:#fbf4dc; --chkrule:#e7d9a5; --topbg:#026395; /* Bahama Blue, Pegasus identity colour */
+  --track:#e3e8ec; --sel:#edf3fa; --chkbg:#fbf4dc; --chkrule:#e7d9a5; --topbg:#026395; --brand:#026395; /* Bahama Blue, Pegasus identity colour */
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#0b141d; --deck:#121f2b; --ink:#e8eef4; --slate:#93a4b5; --rule:#22313f; --blue:#6db4ee; --brass:#d8b95a;
     --ok:#4cc9a0; --okbg:#143a30; --okfg:#7fe0bf; --watch:#e8c35b; --watchbg:#3a3114; --watchfg:#f0d884;
     --alert:#ff6b5b; --alertbg:#42201d; --alertfg:#ff9d92; --nonebg:#1c2a37; --nonefg:#a9b9c8; --none:#7d8fa1;
-    --track:#22313f; --sel:#16293a; --chkbg:#2f2a14; --chkrule:#4a4220; --topbg:#026395;
+    --track:#22313f; --sel:#16293a; --chkbg:#2f2a14; --chkrule:#4a4220; --topbg:#026395; --brand:#6db4ee;
   }
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -85,9 +85,9 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 @media (max-width:700px){.tile.w2{grid-column:span 1}}
 .th{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .th h4{flex:1}
-.d{display:inline-block;width:14px;height:14px;border-radius:50%;flex:none}
-.d.ok{background:var(--ok)}.d.watch{background:var(--watch)}.d.alert{background:var(--alert)}
-.d.none{border:2px dashed var(--none)}
+.ico{width:22px;height:22px;flex:none;color:var(--brand);fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chip{display:inline-flex;align-items:center;gap:4px}
+.chip .g{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .r{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .r .k{color:var(--slate)}.r .v{text-align:right}
 .ft{font-size:12px;color:var(--slate);line-height:1.4;margin-top:8px;padding-right:96px}
@@ -649,9 +649,32 @@ function fmtDuration(s) {
   return Math.round(s / 60) + " min";
 }
 const BADGE = { live: ["LIVE TODAY", "b-live"], plan: ["PLANNED", "b-plan"], man: ["MANUAL ENTRY", "b-man"], mixp: ["LIVE + PLANNED", "b-plan"], mixm: ["LIVE + MANUAL", "b-live"] };
+// Section icons (24px line icons) shown before each tile title.
+const ICONS = {
+  "Safety critical": '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24"/>',
+  "Propulsion": '<path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><path d="M12 12v.01"/>',
+  "Fuel": '<path d="M3 22h12M4 9h10M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0V9.83a2 2 0 0 0-.59-1.42L18 5"/>',
+  "Fresh water": '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+  "Electrical and power": '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  "Security": '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  "Environment": '<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2"/>',
+  "Position": '<circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36z"/>',
+  "Gateway and data": '<path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>',
+};
+// Status glyphs inside the chip, so status reads from word + shape + colour.
+const GLYPH = {
+  ok: '<path d="M20 6 9 17l-5-5"/>',
+  watch: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3zM12 9v4M12 17h.01"/>',
+  none: '<path d="M5 12h14"/>',
+  off: '<path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.77.04"/>',
+};
+GLYPH.ready = GLYPH.ok; GLYPH.check = GLYPH.watch; GLYPH.alarm = GLYPH.alert;
+const chipInner = (st, label) => `<svg class="g" viewBox="0 0 24 24" aria-hidden="true">${GLYPH[/^off$/i.test(label) ? "off" : st] || GLYPH.none}</svg>${label}`;
 function tile(name, st, stlab, badge, rowsHtml, foot, cls) {
   const [b, bc] = BADGE[badge];
-  return `<div class="tile ${cls || ""}"><div class="th"><i class="d ${st}"></i><h4>${name}</h4><span class="chip ${st}">${stlab}</span></div>${rowsHtml}${foot ? `<div class="ft">${foot}</div>` : ""}<span class="bdg ${bc}">${b}</span></div>`;
+  const ico = ICONS[name] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>` : "";
+  return `<div class="tile ${cls || ""}"><div class="th">${ico}<h4>${name}</h4><span class="chip ${st}">${chipInner(st, stlab)}</span></div>${rowsHtml}${foot ? `<div class="ft">${foot}</div>` : ""}<span class="bdg ${bc}">${b}</span></div>`;
 }
 const row = (k, v) => `<div class="r"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const NA = t => `<span class="na">${t}</span>`;
@@ -684,7 +707,7 @@ function renderAll(d) {
   const s = derive(d), paths = s.paths, pos = d.pos;
   const zone = pos ? currentZone(pos.lat, pos.lon) : null;
   // header + status
-  $("statusChip").className = "chip statuschip " + s.status; $("statusChip").textContent = s.label;
+  $("statusChip").className = "chip statuschip " + s.status; $("statusChip").innerHTML = chipInner(s.status, s.label);
   // connection pill
   const pill = $("connPill"); pill.className = "pill";
   if (!d.status) { $("connTxt").textContent = "No data yet"; pill.classList.add("warn"); }
