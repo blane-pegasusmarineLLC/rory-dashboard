@@ -76,6 +76,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .strip .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate)}
 .strip .v{font-size:15px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .strip .v small{font-weight:400;color:var(--slate);margin-left:4px}
+.strip .v .hdg{width:17px;height:17px;vertical-align:-3px;margin-right:6px;fill:none;stroke:var(--brand);stroke-width:2;stroke-linejoin:round;transition:transform .4s}
 @media (max-width:700px){.strip{grid-template-columns:repeat(2,minmax(0,1fr))}.strip>div{border-top:1px solid var(--rule)}.strip>div:nth-child(odd){border-left:0}}
 /* tiles */
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
@@ -756,7 +757,7 @@ function renderAll(d) {
     $("mapAge").textContent = "Updated " + ago(pos.ts);
     $("strip").innerHTML = [
       ["Status", restState(sog, zone)], ["Speed", sog != null ? fmt(sog, 1) + " kn" : "—"],
-      ["Heading (mag)", pos.hdg != null ? (h => `${h}°<small>${["N","NE","E","SE","S","SW","W","NW"][Math.round(h / 45) % 8]}</small>`)(Math.round(pos.hdg * RAD2DEG) % 360) : "—"],
+      ["Heading (mag)", pos.hdg != null ? (h => `<svg class="hdg" viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(${h}deg)"><path d="M12 2.5 19 20.5 12 16.5 5 20.5z"/></svg>${h}°<small>${["N","NE","E","SE","S","SW","W","NW"][Math.round(h / 45) % 8]}</small>`)(Math.round(pos.hdg * RAD2DEG) % 360) : "—"],
       ["Geofence", zone ? "Inside " + zone.name : Math.round(dist / 1852 * 10) / 10 + " nm from base"]
     ].map(x => `<div><div class="k">${x[0]}</div><div class="v" title="${String(x[1]).replace(/<[^>]+>/g, " ")}">${x[1]}</div></div>`).join("");
   } else { $("mapSub").textContent = "No position yet"; $("mapAge").textContent = ""; $("strip").innerHTML = ""; }
