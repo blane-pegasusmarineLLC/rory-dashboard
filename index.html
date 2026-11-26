@@ -77,6 +77,15 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .na{color:var(--slate);font-style:italic}
 .tag{font-size:11.5px;padding:1px 7px;border-radius:6px;background:var(--nonebg);color:var(--nonefg);margin-left:6px}
 .tag.warn{background:var(--watchbg);color:var(--watchfg)}
+.boat{display:block;width:100%;max-width:230px;margin:8px auto 2px}
+.boat .o{fill:none;stroke:var(--slate);stroke-opacity:.5;stroke-width:1.2;vector-effect:non-scaling-stroke}
+.boat .cl{stroke-dasharray:4 3;stroke-opacity:.3}
+.boat .lb{font:600 8px Inter,system-ui,sans-serif;fill:var(--slate);letter-spacing:.06em;text-anchor:middle}
+.boat .pill rect{fill:var(--sel);stroke:var(--blue);stroke-opacity:.35;stroke-width:1}
+.boat .pill text{font:600 11.5px Inter,system-ui,sans-serif;fill:var(--ink);text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.boat .pill.stale rect{fill:var(--watchbg);stroke:var(--watch)}
+.boat .pill.stale text{fill:var(--watchfg)}
+.boat .pill.hot rect{stroke:var(--brass);stroke-opacity:1;stroke-width:1.5}
 .es{font-weight:700;padding:1px 7px;border-radius:6px}.es.w{background:var(--watchbg);color:var(--watchfg)}.es.f{background:var(--alertbg);color:var(--alertfg)}
 /* map card */
 .mapcard{position:relative;border-radius:10px;overflow:hidden;background:#06101a;margin-bottom:16px}
@@ -115,7 +124,7 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .chip{display:inline-flex;align-items:center;gap:4px}
 .chip .g{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .r{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--rule);font-size:13.5px}
-.r .k{color:var(--slate)}.r .v{text-align:right}
+.r .k{color:var(--slate)}.r .v{text-align:right}.r .v small{color:var(--slate);margin-left:4px}
 .ft{font-size:12px;color:var(--slate);line-height:1.45;margin-top:8px}
 .more{margin-top:4px}
 .more summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px;color:var(--brand);font-weight:600;font-size:11.5px}
@@ -587,6 +596,8 @@ function qtag(p) {
   return "";
 }
 const fmt = (v, d = 1) => (v == null || isNaN(v)) ? "—" : Number(v).toFixed(d);
+// Display units: temperatures in °F, depth in ft (m secondary). Data stays SI (K, m); thresholds use raw values.
+const c2f = c => c * 9 / 5 + 32, k2f = k => c2f(k - 273.15), M2FT = 3.28084;
 function metres(lat1, lon1, lat2, lon2) {
   const R = 6371000, r = Math.PI / 180, dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
@@ -795,6 +806,36 @@ function tile(name, st, stlab, badge, rowsHtml, foot, cls) {
   const ico = ICONS[name] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>` : "";
   return `<div class="tile ${cls || ""}"><div class="th">${ico}<h4>${name}</h4><span class="chip ${st}">${chipInner(st, stlab)}</span></div>${rowsHtml}${footHtml(foot)}<div class="tf"><span class="bdg ${bc}">${b}</span></div></div>`;
 }
+// Top-down Lagoon 43 outline for the Environment tile. Geometry is the salon display's schematic
+// (pegasus-systems-dashboard, viewBox 680x900) drawn at 1/3 scale. Sensor keys
+// environment.inside.<side><Zone>.temperature (e.g. stbdAftCabin) map to the hatch positions there.
+const BOAT_K = 1 / 3, BOAT_X = 66, BOAT_Y = 40;
+const BOAT_SPOT = { forepeak: 128, fwdcabin: 280, fwdhead: 404, afthead: 544, aftcabin: 692 };
+function boatSpot(loc) {
+  const m = /^(port|stbd)(.+)$/i.exec(loc); const side = m ? m[1].toLowerCase() : null, zone = (m ? m[2] : loc).toLowerCase();
+  if (zone === "galleyfwd" && side) return [side === "port" ? 262 : 418, 404];   // salon, just aft of the forward windows
+  if (zone === "salon") return [340, 510];
+  if (zone === "cockpit") return [340, 697];
+  if (BOAT_SPOT[zone] && side) return [side === "port" ? 130 : 550, BOAT_SPOT[zone]];
+  return null;
+}
+function boatSvg(sensors) {   // sensors: [{ loc, v, stale, hot }]
+  const T = (x, y) => [((x - BOAT_X) * BOAT_K).toFixed(1), ((y - BOAT_Y) * BOAT_K).toFixed(1)];
+  const pills = sensors.map(t => {
+    const [x, y] = T(...t.at), w = t.txt.length * 7 + 10;
+    return `<g class="pill${t.stale ? " stale" : ""}${t.hot ? " hot" : ""}"><title>${esc(t.title)}</title><rect x="${(x - w / 2).toFixed(1)}" y="${(y - 9).toFixed(1)}" width="${w}" height="18" rx="9"/><text x="${x}" y="${y}">${t.txt}</text></g>`;
+  }).join("");
+  const lb = (txt, x, y) => { const [a, b] = T(x, y); return `<text class="lb" x="${a}" y="${b}">${txt}</text>`; };
+  return `<svg class="boat" viewBox="0 0 ${((614 - BOAT_X) * BOAT_K).toFixed(0)} ${((850 - BOAT_Y) * BOAT_K).toFixed(0)}" role="img" aria-label="Cabin temperatures on a top-down outline of the boat">
+    <g transform="scale(${BOAT_K}) translate(${-BOAT_X} ${-BOAT_Y})">
+      <path class="o" d="M 126,62 Q 100,62 88,98 Q 76,134 76,172 L 76,748 Q 76,784 92,806 Q 108,824 132,824 L 144,824 Q 168,824 176,806 Q 184,784 184,748 L 184,172 Q 184,134 174,98 Q 162,62 150,62 Z"/>
+      <path class="o" d="M 554,62 Q 530,62 506,98 Q 496,134 496,172 L 496,748 Q 496,784 504,806 Q 512,824 536,824 L 548,824 Q 572,824 588,806 Q 604,784 604,748 L 604,172 Q 604,134 592,98 Q 580,62 554,62 Z"/>
+      <path class="o" d="M 184,62 Q 340,30 496,62 L 496,172 Q 340,155 184,172 Z"/>
+      <rect class="o" x="184" y="370" width="312" height="277" rx="6"/>
+      <rect class="o" x="184" y="647" width="312" height="100" rx="4"/>
+      <line class="o cl" x1="340" y1="40" x2="340" y2="840"/>
+    </g>${lb("BOW", 340, 112)}${lb("SALON", 340, 600)}${lb("COCKPIT", 340, 735)}${lb("PORT", 130, 845)}${lb("STBD", 550, 845)}${pills}</svg>`;
+}
 const row = (k, v) => `<div class="r"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const NA = t => `<span class="na">${t}</span>`;
 const localTime = t => new Date(t).toLocaleString("en-US", { timeZone: LOCAL_TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
@@ -889,7 +930,7 @@ function renderAll(d) {
   T.push(tile("Propulsion", pSt[0], pSt[1], "live",
     E.map(e => row(e.label, engState(e))).join("") +
     row("Engine hours", hrs) +
-    row("Coolant temperature", anyRun ? per(e => live(e, e.temp) ? fmt(e.temp.last - 273.15, 0) : null) + " °C" : "") +
+    row("Coolant temperature", anyRun ? per(e => live(e, e.temp) ? fmt(k2f(e.temp.last), 0) : null) + "&nbsp;°F" : "") +
     row("Oil pressure", anyRun ? per(e => live(e, e.oil) ? fmt(e.oil.last * 0.000145038, 0) : null) + " psi" : "") +
     row("Alternators", anyRun ? per(e => live(e, e.alt) ? fmt(e.alt.last, 1) : null) + " V" : ""),
     { more: (ENGINE_LABELS_CONFIRMED ? "" : "Port and starboard follow Signal K's convention and are not yet confirmed by the crew. ") + "Fuel rate, engine load and boost are not shown until verified." }));
@@ -942,10 +983,21 @@ function renderAll(d) {
   const cab = Object.entries(paths || {})
     .filter(([k, v]) => /^environment\.inside\.[^.]+\.temperature$/.test(k) && v && v.last != null && (v.q !== "stale" || (v.age_s || 0) <= 7200))
     .sort((a, b) => b[1].last - a[1].last);
-  const cabRows = cab.map(([k, v], i) => row((i === 0 ? "Cabin temp (warmest)" : "Cabin temp") + " · " + esc(pretty(k.split(".")[2])),
-    fmt(v.last - 273.15, 0) + " °C" + qtag(v))).join("");
+  // Warmest gets a summary row; every sensor with a known position goes on the boat outline,
+  // anything we can't place falls back to a plain row.
+  const cabName = k => pretty(k.split(".")[2]), cabF = v => fmt(k2f(v.last), 0) + "&nbsp;°F";
+  const placed = [], loose = [];
+  cab.forEach(([k, v], i) => {
+    const at = boatSpot(k.split(".")[2]), stale = v.q === "stale";
+    if (at) placed.push({ at, txt: fmt(k2f(v.last), 0) + "°", stale, hot: i === 0 && cab.length > 1,
+      title: cabName(k) + ": " + fmt(k2f(v.last), 0) + " °F" + (stale && v.age_s != null ? " (stale " + Math.round(v.age_s / 60) + " min)" : "") });
+    else if (i > 0) loose.push(row("Cabin temp · " + esc(cabName(k)), cabF(v) + qtag(v)));
+  });
+  const cabRows = cab.length ? row("Cabin temp (warmest) · " + esc(cabName(cab[0][0])), cabF(cab[0][1]) + qtag(cab[0][1])) +
+    (placed.length ? `<div class="r" style="display:block">${boatSvg(placed)}<div class="na" style="font-size:11px;text-align:center">Cabin temperatures in °F. Gold outline is the warmest. Amber is a reading up to 2 hours old.</div></div>` : "") +
+    loose.join("") : "";
   T.push(tile("Environment", dp || wt || wsp || cab.length ? "ok" : "none", dp || wt || wsp || cab.length ? "OK" : "No data yet", "live",
-    row("Depth below keel", dp ? fmt(dp.last, 1) + " m" + qtag(dp) : NA("No data")) + row("Water temperature", wt ? fmt(wt.last - 273.15, 1) + " °C" + qtag(wt) : NA("No data")) +
+    row("Depth below keel", dp ? fmt(dp.last * M2FT, 1) + "&nbsp;ft<small>" + fmt(dp.last, 1) + "&nbsp;m</small>" + qtag(dp) : NA("No data")) + row("Water temperature", wt ? fmt(k2f(wt.last), 1) + "&nbsp;°F" + qtag(wt) : NA("No data")) +
     row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + (cabRows || row("Cabin temperature", NA("No sensor yet")))));
   // Gateway
   const pl = s.pl, gw = [
@@ -953,7 +1005,7 @@ function renderAll(d) {
     ["Uplink agent", pl.agent ? "v" + esc(String(pl.agent).replace(/^rory-uplink\s*/, "")) : "—"],
     ["Agent uptime", pl.uptime_s != null ? (pl.uptime_s >= 3600 ? fmt(pl.uptime_s / 3600, 1) + " h" : Math.round(pl.uptime_s / 60) + " min") : "—"],
     ["Signal K paths tracked", pl.paths != null ? pl.paths : "—"], ["Backlog queued", pl.queue != null ? pl.queue + " messages" : "—"],
-    ["Dropped messages", pl.dropped != null ? pl.dropped : "—"], ["Gateway CPU temp", pl.cpu_temp_c != null ? fmt(pl.cpu_temp_c, 1) + " °C" : "—"],
+    ["Dropped messages", pl.dropped != null ? pl.dropped : "—"], ["Gateway CPU temp", pl.cpu_temp_c != null ? fmt(c2f(pl.cpu_temp_c), 0) + "&nbsp;°F" : "—"],
     ["Memory available", pl.mem_avail_mb != null ? pl.mem_avail_mb + " MB" : "—"], ["Swap used", pl.swap_used_mb != null ? pl.swap_used_mb + " MB" : "—"],
     ["Clock skew", pl.skew_s != null ? fmt(pl.skew_s, 1) + " s" : "—"]];
   const gwSt = !d.status ? "none" : !s.online ? "alert" : (pl.cpu_temp_c != null && pl.cpu_temp_c >= 78) || (pl.dropped > 0) ? "watch" : "ok";
