@@ -77,15 +77,31 @@ button.primary{background:var(--blue);color:#fff;border-color:transparent;font-w
 .na{color:var(--slate);font-style:italic}
 .tag{font-size:11.5px;padding:1px 7px;border-radius:6px;background:var(--nonebg);color:var(--nonefg);margin-left:6px}
 .tag.warn{background:var(--watchbg);color:var(--watchfg)}
-.boat{display:block;width:100%;max-width:230px;margin:8px auto 2px}
-.boat .o{fill:none;stroke:var(--slate);stroke-opacity:.5;stroke-width:1.2;vector-effect:non-scaling-stroke}
-.boat .cl{stroke-dasharray:4 3;stroke-opacity:.3}
-.boat .lb{font:600 8px Inter,system-ui,sans-serif;fill:var(--slate);letter-spacing:.06em;text-anchor:middle}
-.boat .pill rect{fill:var(--sel);stroke:var(--blue);stroke-opacity:.35;stroke-width:1}
-.boat .pill text{font:600 11.5px Inter,system-ui,sans-serif;fill:var(--ink);text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
-.boat .pill.stale rect{fill:var(--watchbg);stroke:var(--watch)}
-.boat .pill.stale text{fill:var(--watchfg)}
-.boat .pill.hot rect{stroke:var(--brass);stroke-opacity:1;stroke-width:1.5}
+.boat{display:block;width:100%;max-width:250px;margin:10px auto 4px}
+.boat .hull{fill:var(--paper);fill-opacity:.7;stroke:var(--slate);stroke-opacity:.35;stroke-width:1}
+.boat .net{fill:none;stroke:var(--slate);stroke-opacity:.3;stroke-dasharray:3 3}
+.boat .z{stroke-width:1}
+.boat .z.none{fill:none;stroke:var(--slate);stroke-opacity:.35;stroke-dasharray:3 3}
+.boat .z.cool{fill:var(--blue);fill-opacity:.14;stroke:var(--blue);stroke-opacity:.45}
+.boat .z.ok{fill:var(--ok);fill-opacity:.14;stroke:var(--ok);stroke-opacity:.45}
+.boat .z.warm{fill:var(--watch);fill-opacity:.24;stroke:var(--watch);stroke-opacity:.7}
+.boat .z.hot{fill:var(--alert);fill-opacity:.16;stroke:var(--alert);stroke-opacity:.55}
+.boat .zl{font:600 7.5px Inter,system-ui,sans-serif;letter-spacing:.1em;fill:var(--slate);text-anchor:middle}
+.boat .zt{font:700 17px Inter,system-ui,sans-serif;fill:var(--ink);text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.boat .zt.na{font-size:14px;font-weight:500;fill:var(--slate);font-style:normal}
+.boat .za{font:500 8px Inter,system-ui,sans-serif;fill:var(--slate);text-anchor:middle}
+.boat .za.stale{fill:var(--watchfg)}
+.boat .h{stroke-width:1.5}
+.boat .h.closed{fill:var(--deck);stroke:var(--ok)}
+.boat .h.open{fill:var(--watch);stroke:var(--watch)}
+.bkey{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;font-size:11px;color:var(--slate);margin-top:2px}
+.bkey i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid}
+.bkey .cool{background:color-mix(in srgb,var(--blue) 18%,transparent);border-color:var(--blue)}
+.bkey .ok{background:color-mix(in srgb,var(--ok) 18%,transparent);border-color:var(--ok)}
+.bkey .warm{background:color-mix(in srgb,var(--watch) 30%,transparent);border-color:var(--watch)}
+.bkey .hot{background:color-mix(in srgb,var(--alert) 20%,transparent);border-color:var(--alert)}
+.bkey .hc{background:var(--deck);border:1.5px solid var(--ok);border-radius:2px;width:8px;height:8px}
+.bkey .ho{background:var(--watch);border:1.5px solid var(--watch);border-radius:2px;width:8px;height:8px}
 .es{font-weight:700;padding:1px 7px;border-radius:6px}.es.w{background:var(--watchbg);color:var(--watchfg)}.es.f{background:var(--alertbg);color:var(--alertfg)}
 /* map card */
 .mapcard{position:relative;border-radius:10px;overflow:hidden;background:#06101a;margin-bottom:16px}
@@ -635,8 +651,10 @@ function derive(d) {
   if (vmin != null && vmin < RULES.batteryNotReadyV) { add(`Battery ${fmt(vmin, 1)} V, below ${RULES.batteryNotReadyV} V`, RULES.batteryFailPoints, `A battery bank is at ${fmt(vmin, 1)} V. Charge before handover.`); }
   else if (vmin != null && vmin < RULES.batteryReadyV) { add(`Battery ${fmt(vmin, 1)} V, target ${RULES.batteryReadyV} V`, RULES.batteryCheckPoints, `A battery bank is at ${fmt(vmin, 1)} V. Target is ${RULES.batteryReadyV} V or more on shore power.`); }
 
-  // hatches: latest state per contact path from recent events
+  // hatches: latest state per contact path. vessel_latest carries every reporting sensor's
+  // contact (true = contact made = closed); recent events fill in any path it lacks.
   const latestState = {};
+  Object.entries(paths).forEach(([k, v]) => { if (/\.contact$/.test(k) && v && typeof v.last === "boolean") latestState[k] = v.last ? "closed" : "open"; });
   (d.evts || []).forEach(e => { if (/\.contact$/.test(e.path) && !(e.path in latestState)) latestState[e.path] = e.state; });
   const openHatches = Object.entries(latestState).filter(([, s]) => s === "open").map(([p]) => pretty(p.replace(/^environment\.inside\./, "").replace(/\.contact$/, "")));
   if (openHatches.length) { add(`${openHatches.length} hatch or door open`, RULES.hatchOpenPoints, `Open: ${openHatches.join(", ")}.`); }
@@ -806,35 +824,44 @@ function tile(name, st, stlab, badge, rowsHtml, foot, cls) {
   const ico = ICONS[name] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>` : "";
   return `<div class="tile ${cls || ""}"><div class="th">${ico}<h4>${name}</h4><span class="chip ${st}">${chipInner(st, stlab)}</span></div>${rowsHtml}${footHtml(foot)}<div class="tf"><span class="bdg ${bc}">${b}</span></div></div>`;
 }
-// Top-down Lagoon 43 outline for the Environment tile. Geometry is the salon display's schematic
-// (pegasus-systems-dashboard, viewBox 680x900) drawn at 1/3 scale. Sensor keys
-// environment.inside.<side><Zone>.temperature (e.g. stbdAftCabin) map to the hatch positions there.
-const BOAT_K = 1 / 3, BOAT_X = 66, BOAT_Y = 40;
-const BOAT_SPOT = { forepeak: 128, fwdcabin: 280, fwdhead: 404, afthead: 544, aftcabin: 692 };
-function boatSpot(loc) {
-  const m = /^(port|stbd)(.+)$/i.exec(loc); const side = m ? m[1].toLowerCase() : null, zone = (m ? m[2] : loc).toLowerCase();
-  if (zone === "galleyfwd" && side) return [side === "port" ? 262 : 418, 404];   // salon, just aft of the forward windows
-  if (zone === "salon") return [340, 510];
-  if (zone === "cockpit") return [340, 697];
-  if (BOAT_SPOT[zone] && side) return [side === "port" ? 130 : 550, BOAT_SPOT[zone]];
-  return null;
+// Abstract top-down plan of the boat for the Environment tile: two hulls and a bridgedeck, six
+// temperature zones tinted by band, and hatch markers placed like the salon display's schematic.
+// Sensor keys are environment.inside.<side><Zone>.<temperature|contact>, e.g. stbdAftCabin.
+const TEMP_BANDS = [[95, "hot"], [85, "warm"], [75, "ok"], [-Infinity, "cool"]];   // °F lower bounds
+const tempBand = f => TEMP_BANDS.find(([lo]) => f >= lo)[1];
+const BOAT_ZONES = [   // id, label, rect [x, y, w, h], sensor-key test
+  ["portFore", "PORT FORE", [14, 30, 52, 96], k => /^port(FwdCabin|Forepeak)$/i.test(k)],
+  ["portAft", "PORT AFT", [14, 212, 52, 96], k => /^portAftCabin$/i.test(k)],
+  ["stbdFore", "STBD FORE", [194, 30, 52, 96], k => /^stbd(FwdCabin|Forepeak)$/i.test(k)],
+  ["stbdAft", "STBD AFT", [194, 212, 52, 96], k => /^stbdAftCabin$/i.test(k)],
+  ["salon", "SALON", [82, 120, 96, 98], k => /galley|salon/i.test(k)],
+  ["cockpit", "COCKPIT", [82, 224, 96, 70], k => /cockpit/i.test(k)],
+];
+const HATCH_SPOT = { forepeak: 16, fwdcabin: 114, fwdhead: 150, afthead: 186, aftcabin: 296 };
+function hatchSpot(loc) {
+  const m = /^(port|stbd)(.+)$/i.exec(loc); if (!m) return null;
+  const side = m[1].toLowerCase(), zone = m[2].toLowerCase();
+  if (zone === "galleyfwd") return [side === "port" ? 110 : 150, 120];   // forward salon windows
+  return HATCH_SPOT[zone] != null ? [side === "port" ? 40 : 220, HATCH_SPOT[zone]] : null;
 }
-function boatSvg(sensors) {   // sensors: [{ loc, v, stale, hot }]
-  const T = (x, y) => [((x - BOAT_X) * BOAT_K).toFixed(1), ((y - BOAT_Y) * BOAT_K).toFixed(1)];
-  const pills = sensors.map(t => {
-    const [x, y] = T(...t.at), w = t.txt.length * 7 + 10;
-    return `<g class="pill${t.stale ? " stale" : ""}${t.hot ? " hot" : ""}"><title>${esc(t.title)}</title><rect x="${(x - w / 2).toFixed(1)}" y="${(y - 9).toFixed(1)}" width="${w}" height="18" rx="9"/><text x="${x}" y="${y}">${t.txt}</text></g>`;
+// zones: { id: { f, stale, age_s, names[] } }, hatches: [{ loc, state }]
+function boatSvg(zones, hatches) {
+  const zoneSvg = BOAT_ZONES.map(([id, label, [x, y, w, h]]) => {
+    const z = zones[id], cx = x + w / 2, cy = y + h / 2;
+    const tip = z ? `${label.toLowerCase().replace(/^./, c => c.toUpperCase())}: ${fmt(z.f, 0)} °F${z.names.length > 1 ? " (average of " + z.names.join(", ") + ")" : " (" + z.names[0] + ")"}${z.stale && z.age_s != null ? ", " + Math.round(z.age_s / 60) + " min old" : ""}` : label + ": no sensor yet";
+    return `<g><title>${esc(tip)}</title><rect class="z ${z ? tempBand(z.f) : "none"}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${w < 60 ? 16 : 12}"/>
+      <text class="zl" x="${cx}" y="${cy - 19}">${label.split(" ").pop()}</text>
+      <text class="zt${z ? "" : " na"}" x="${cx}" y="${cy}">${z ? fmt(z.f, 0) + "°" : "—"}</text>
+      ${z && z.stale && z.age_s != null ? `<text class="za stale" x="${cx}" y="${cy + 20}">${Math.round(z.age_s / 60)} min ago</text>` : !z ? `<text class="za" x="${cx}" y="${cy + 20}">no sensor</text>` : ""}</g>`;
   }).join("");
-  const lb = (txt, x, y) => { const [a, b] = T(x, y); return `<text class="lb" x="${a}" y="${b}">${txt}</text>`; };
-  return `<svg class="boat" viewBox="0 0 ${((614 - BOAT_X) * BOAT_K).toFixed(0)} ${((850 - BOAT_Y) * BOAT_K).toFixed(0)}" role="img" aria-label="Cabin temperatures on a top-down outline of the boat">
-    <g transform="scale(${BOAT_K}) translate(${-BOAT_X} ${-BOAT_Y})">
-      <path class="o" d="M 126,62 Q 100,62 88,98 Q 76,134 76,172 L 76,748 Q 76,784 92,806 Q 108,824 132,824 L 144,824 Q 168,824 176,806 Q 184,784 184,748 L 184,172 Q 184,134 174,98 Q 162,62 150,62 Z"/>
-      <path class="o" d="M 554,62 Q 530,62 506,98 Q 496,134 496,172 L 496,748 Q 496,784 504,806 Q 512,824 536,824 L 548,824 Q 572,824 588,806 Q 604,784 604,748 L 604,172 Q 604,134 592,98 Q 580,62 554,62 Z"/>
-      <path class="o" d="M 184,62 Q 340,30 496,62 L 496,172 Q 340,155 184,172 Z"/>
-      <rect class="o" x="184" y="370" width="312" height="277" rx="6"/>
-      <rect class="o" x="184" y="647" width="312" height="100" rx="4"/>
-      <line class="o cl" x1="340" y1="40" x2="340" y2="840"/>
-    </g>${lb("BOW", 340, 112)}${lb("SALON", 340, 600)}${lb("COCKPIT", 340, 735)}${lb("PORT", 130, 845)}${lb("STBD", 550, 845)}${pills}</svg>`;
+  const hatchSvg = hatches.map(({ loc, state }) => { const at = hatchSpot(loc); if (!at) return "";
+    return `<rect class="h ${state}" x="${at[0] - 5}" y="${at[1] - 5}" width="10" height="10" rx="2.5"><title>${esc(pretty(loc))} hatch ${state}</title></rect>`; }).join("");
+  return `<svg class="boat" viewBox="0 0 260 340" role="img" aria-label="Cabin temperatures and hatch states on a plan of the boat">
+    <rect class="hull" x="8" y="4" width="64" height="320" rx="30"/><rect class="hull" x="188" y="4" width="64" height="320" rx="30"/>
+    <text class="zl" x="40" y="337">PORT</text><text class="zl" x="220" y="337">STBD</text>
+    <rect class="net" x="82" y="22" width="96" height="88" rx="10"/><text class="zl" x="130" y="70">BOW</text>
+    <text class="zl" x="40" y="172" opacity=".7">HEADS</text><text class="zl" x="220" y="172" opacity=".7">HEADS</text>
+    ${zoneSvg}${hatchSvg}</svg>`;
 }
 const row = (k, v) => `<div class="r"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 const NA = t => `<span class="na">${t}</span>`;
@@ -983,19 +1010,21 @@ function renderAll(d) {
   const cab = Object.entries(paths || {})
     .filter(([k, v]) => /^environment\.inside\.[^.]+\.temperature$/.test(k) && v && v.last != null && (v.q !== "stale" || (v.age_s || 0) <= 7200))
     .sort((a, b) => b[1].last - a[1].last);
-  // Warmest gets a summary row; every sensor with a known position goes on the boat outline,
-  // anything we can't place falls back to a plain row.
+  // Warmest gets a summary row; the plan shows six zones (salon averages its sensors) plus hatch
+  // states; temperature sensors that fit no zone fall back to plain rows.
   const cabName = k => pretty(k.split(".")[2]), cabF = v => fmt(k2f(v.last), 0) + "&nbsp;°F";
-  const placed = [], loose = [];
-  cab.forEach(([k, v], i) => {
-    const at = boatSpot(k.split(".")[2]), stale = v.q === "stale";
-    if (at) placed.push({ at, txt: fmt(k2f(v.last), 0) + "°", stale, hot: i === 0 && cab.length > 1,
-      title: cabName(k) + ": " + fmt(k2f(v.last), 0) + " °F" + (stale && v.age_s != null ? " (stale " + Math.round(v.age_s / 60) + " min)" : "") });
-    else if (i > 0) loose.push(row("Cabin temp · " + esc(cabName(k)), cabF(v) + qtag(v)));
+  const zones = {}, used = new Set();
+  BOAT_ZONES.forEach(([id, , , test]) => {
+    const hits = cab.filter(([k]) => test(k.split(".")[2])); if (!hits.length) return;
+    hits.forEach(([k]) => used.add(k));
+    zones[id] = { f: hits.reduce((a, [, v]) => a + k2f(v.last), 0) / hits.length, stale: hits.every(([, v]) => v.q === "stale"),
+      age_s: Math.min(...hits.map(([, v]) => v.age_s || 0)), names: hits.map(([k]) => cabName(k)) };
   });
-  const cabRows = cab.length ? row("Cabin temp (warmest) · " + esc(cabName(cab[0][0])), cabF(cab[0][1]) + qtag(cab[0][1])) +
-    (placed.length ? `<div class="r" style="display:block">${boatSvg(placed)}<div class="na" style="font-size:11px;text-align:center">Cabin temperatures in °F. Gold outline is the warmest. Amber is a reading up to 2 hours old.</div></div>` : "") +
-    loose.join("") : "";
+  const hatches = Object.entries(s.latestState).map(([p, state]) => ({ loc: p.split(".")[2], state }));
+  const keyHtml = `<div class="bkey"><span><i class="cool"></i>&lt;75°</span><span><i class="ok"></i>75–85°</span><span><i class="warm"></i>85–95°</span><span><i class="hot"></i>95°+</span>${hatches.length ? '<span><i class="hc"></i>Hatch closed</span><span><i class="ho"></i>Open</span>' : ""}</div>`;
+  const cabRows = (cab.length ? row("Cabin temp (warmest) · " + esc(cabName(cab[0][0])), cabF(cab[0][1]) + qtag(cab[0][1])) : "") +
+    (cab.length || hatches.length ? `<div class="r" style="display:block">${boatSvg(zones, hatches)}${keyHtml}</div>` : "") +
+    cab.filter(([k]) => !used.has(k)).map(([k, v]) => row("Cabin temp · " + esc(cabName(k)), cabF(v) + qtag(v))).join("");
   T.push(tile("Environment", dp || wt || wsp || cab.length ? "ok" : "none", dp || wt || wsp || cab.length ? "OK" : "No data yet", "live",
     row("Depth below keel", dp ? fmt(dp.last * M2FT, 1) + "&nbsp;ft<small>" + fmt(dp.last, 1) + "&nbsp;m</small>" + qtag(dp) : NA("No data")) + row("Water temperature", wt ? fmt(k2f(wt.last), 1) + "&nbsp;°F" + qtag(wt) : NA("No data")) +
     row("Apparent wind", wsp ? fmt(wsp.last * MS2KN, 1) + " kn" + qtag(wsp) : NA("No data")) + (cabRows || row("Cabin temperature", NA("No sensor yet")))));
@@ -1100,7 +1129,10 @@ function demoData() {
     "propulsion.starboard.alternatorVoltage": { n: 0, last: 14.1, age_s: 75600, q: "stale" },
     "electrical.batteries.0.current": { n: 60, last: -0.4, q: "unverified" },
     "environment.depth.belowKeel": s(1.33), "environment.water.temperature": s(304.53), "environment.wind.speedApparent": s(5.0),
-    "environment.inside.portGalleyFwd.temperature": s(311.15), "environment.inside.stbdGalleyFwd.temperature": s(308.15), "environment.inside.stbdAftCabin.temperature": { n: 0, last: 313.15, age_s: 1500, q: "stale" },
+    "environment.inside.portGalleyFwd.temperature": s(311.15), "environment.inside.stbdGalleyFwd.temperature": s(308.15), "environment.inside.stbdAftCabin.temperature": { n: 0, last: 313.15, age_s: 1500, q: "stale" }, "environment.inside.portFwdCabin.temperature": { n: 0, last: 299.15, age_s: 2400, q: "stale" },
+    "environment.inside.portFwdCabin.contact": { n: 0, last: false, age_s: 3600, q: "stale" }, "environment.inside.stbdFwdCabin.contact": { n: 0, last: true, age_s: 1500, q: "stale" },
+    "environment.inside.stbdAftCabin.contact": { n: 0, last: true, age_s: 1500, q: "stale" }, "environment.inside.stbdFwdHead.contact": { n: 0, last: true, age_s: 600, q: "stale" },
+    "environment.inside.portFwdHead.contact": { n: 0, last: true, age_s: 2200, q: "stale" }, "environment.inside.portGalleyFwd.contact": s(false), "environment.inside.stbdGalleyFwd.contact": s(true),
   };
   const hist = Array.from({ length: 120 }, (_, i) => ({ ts: iso(now - i * 60000), paths: Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, v.mean != null ? { ...v, mean: v.mean + Math.sin(i / 9) * 0.06 } : v])) }));
   const track = Array.from({ length: 30 }, (_, i) => ({ lat: 18.4118 + Math.sin(i) * 0.00002, lon: -64.6139 + Math.cos(i) * 0.00002 }));
